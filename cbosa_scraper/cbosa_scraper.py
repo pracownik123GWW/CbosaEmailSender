@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import time
 import logging
 from urllib.parse import urljoin
-from python.date_filter_manager import DateFilterManager
+from cbosa_scraper.date_filter_manager import DateFilterManager
 import json
 
 logger = logging.getLogger(__name__)

@@ -15,9 +15,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'python'))
 
 from database import DatabaseManager, SearchConfiguration, User
 from brevo_service import BrevoEmailService, EmailRecipient
-from python.cbosa_scraper import CBOSAScraper
-from python.ai_judgment_analyzer import JudgmentAnalyzer
-from python.newsletter_generator import NewsletterGenerator
+from cbosa_scraper.cbosa_scraper import CBOSAScraper
+from cbosa_scraper.ai_judgment_analyzer import JudgmentAnalyzer
+from cbosa_scraper.newsletter_generator import NewsletterGenerator
 
 logger = logging.getLogger(__name__)
 
