@@ -9,15 +9,16 @@ import logging
 import schedule
 import time
 import threading
-from datetime import datetime
 from dotenv import load_dotenv
-
-# Załaduj zmienne środowiskowe
-load_dotenv()
 
 from database import DatabaseManager
 from brevo_service import BrevoEmailService
 from cbosa_bot import CBOSABot
+
+# Załaduj zmienne środowiskowe
+load_dotenv()
+
+
 
 # Konfiguracja logowania
 logging.basicConfig(

@@ -147,7 +147,7 @@ class DatabaseManager:
     def get_all_active_users(self) -> List[User]:
         """Pobierz wszystkich aktywnych użytkowników"""
         with self.get_session() as session:
-            return session.query(User).filter(User.is_active == True).all()
+            return session.query(User).filter(User.is_active).all()
     
     # Metody dla konfiguracji wyszukiwania
     def get_search_configuration(self, config_id: str) -> Optional[SearchConfiguration]:
@@ -158,7 +158,7 @@ class DatabaseManager:
     def get_all_active_search_configurations(self) -> List[SearchConfiguration]:
         """Pobierz wszystkie aktywne konfiguracje wyszukiwania"""
         with self.get_session() as session:
-            return session.query(SearchConfiguration).filter(SearchConfiguration.is_active == True).all()
+            return session.query(SearchConfiguration).filter(SearchConfiguration.is_active).all()
     
     def create_search_configuration(self, name: str, description: str, search_params: Dict[str, Any], max_results: int = 50) -> SearchConfiguration:
         """Utwórz nową konfigurację wyszukiwania"""
@@ -180,7 +180,7 @@ class DatabaseManager:
         with self.get_session() as session:
             return session.query(UserSubscription).filter(
                 UserSubscription.user_id == user_id,
-                UserSubscription.is_active == True
+                UserSubscription.is_active
             ).all()
     
     def get_subscriptions_for_config(self, search_config_id: str) -> List[UserSubscription]:
@@ -188,7 +188,7 @@ class DatabaseManager:
         with self.get_session() as session:
             return session.query(UserSubscription).filter(
                 UserSubscription.search_config_id == search_config_id,
-                UserSubscription.is_active == True
+                UserSubscription.is_active
             ).all()
     
     def create_user_subscription(self, user_id: str, search_config_id: str) -> UserSubscription:

@@ -5,7 +5,7 @@ Based on investigation findings - includes both CBOSA submission and local filte
 """
 
 import re
-from datetime import datetime, date
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)

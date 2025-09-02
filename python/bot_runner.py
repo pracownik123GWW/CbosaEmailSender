@@ -7,8 +7,6 @@ Called from Node.js via child process
 import sys
 import json
 import logging
-import os
-from datetime import datetime
 from cbosa_scraper import CBOSAScraper
 from ai_judgment_analyzer import JudgmentAnalyzer
 from newsletter_generator import NewsletterGenerator

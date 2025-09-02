@@ -1,12 +1,8 @@
-from http.client import RemoteDisconnected
-import random
 import requests
 from bs4 import BeautifulSoup
 import time
-import os
 import logging
-from urllib.parse import urljoin, urlparse
-import re
+from urllib.parse import urljoin
 from python.date_filter_manager import DateFilterManager
 import json
 
@@ -87,9 +83,7 @@ class CBOSAScraper:
 
             # Skip local date filtering - CBOSA handles date filtering correctly
             # The signature year (e.g., /24) doesn't necessarily match the judgment date
-            logger.info(
-                f"Using CBOSA's date filtering results without additional local filtering"
-            )
+            logger.info("Using CBOSA's date filtering results without additional local filtering")
 
             logger.info(
                 f"Final result: {len(case_data)} cases after all filtering")
@@ -317,7 +311,6 @@ class CBOSAScraper:
     def _parse_all_search_results(self, initial_content, initial_url, max_results):
         """Parse all pages of search results following pagination"""
         all_case_data = []
-        current_url = initial_url
         current_content = initial_content
         page_num = 1
 
@@ -358,7 +351,6 @@ class CBOSAScraper:
                 response.raise_for_status()
                 
                 current_content = response.content
-                current_url = response.url
                 page_num += 1
 
             except Exception as e:

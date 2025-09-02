@@ -1,5 +1,4 @@
 import os
-import json
 import logging
 from typing import List, Dict, Optional
 from striprtf.striprtf import rtf_to_text

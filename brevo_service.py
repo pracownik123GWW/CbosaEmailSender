@@ -8,7 +8,7 @@ import os
 import logging
 import requests
 import time
-from typing import List, Dict, Optional
+from typing import List, Optional
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
