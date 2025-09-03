@@ -8,10 +8,9 @@ import os
 import logging
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from sqlalchemy import create_engine, Column, String, Integer, DateTime, Boolean, JSON, Text, ForeignKey
+from sqlalchemy import BigInteger, create_engine, Column, String, Integer, DateTime, Boolean, JSON, Text, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
-from sqlalchemy.dialects.postgresql import UUID
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -22,7 +21,7 @@ class User(Base):
     """Model użytkownika subskrybującego newsletter"""
     __tablename__ = 'users'
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     email = Column(String(255), unique=True, nullable=False)
     name = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -37,7 +36,7 @@ class SearchConfiguration(Base):
     """Model konfiguracji wyszukiwania orzeczeń"""
     __tablename__ = 'search_configurations'
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False)
     description = Column(Text)
     search_params = Column(JSON, nullable=False)
@@ -54,9 +53,9 @@ class UserSubscription(Base):
     """Model subskrypcji użytkownika do określonej konfiguracji wyszukiwania"""
     __tablename__ = 'user_subscriptions'
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    search_config_id = Column(UUID(as_uuid=True), ForeignKey('search_configurations.id', ondelete='CASCADE'), nullable=False)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    search_config_id = Column(BigInteger, ForeignKey('search_configurations.id', ondelete='CASCADE'), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
@@ -68,9 +67,9 @@ class ExecutionLog(Base):
     """Model logu wykonania bota"""
     __tablename__ = 'execution_logs'
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    search_config_id = Column(UUID(as_uuid=True), ForeignKey('search_configurations.id'), nullable=False)
-    status = Column(String(50), nullable=False)  # 'started', 'completed', 'failed'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    search_config_id = Column(BigInteger, ForeignKey('search_configurations.id', ondelete='CASCADE'), nullable=False)
+    status = Column(String(50), nullable=False)
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     completed_at = Column(DateTime)
     cases_found = Column(Integer)
@@ -87,9 +86,9 @@ class EmailLog(Base):
     """Model logu wysłanych emaili"""
     __tablename__ = 'email_logs'
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    execution_log_id = Column(UUID(as_uuid=True), ForeignKey('execution_logs.id'), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    execution_log_id = Column(BigInteger, ForeignKey('execution_logs.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     email = Column(String(255), nullable=False)
     status = Column(String(50), nullable=False)  # 'sent', 'failed', 'bounced'
     brevo_message_id = Column(String(255))
