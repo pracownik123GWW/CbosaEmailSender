@@ -5,6 +5,8 @@ import logging
 from urllib.parse import urljoin
 from cbosa_scraper.date_filter_manager import DateFilterManager
 import json
+from http.client import RemoteDisconnected
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,28 @@ class CBOSAScraper:
         })
         self.date_filter = DateFilterManager()
 
+    def _get_with_retry(self, url, *, retries=4, backoff=1.6, timeout=(5, 40)):
+        """
+        GET z retry dla błędów sieciowych/5xx/429. Zwraca requests.Response.
+        """
+        last_err = None
+        for attempt in range(1, retries + 1):
+            try:
+                r = self.session.get(url, timeout=timeout)
+                # retry dla 5xx i 429
+                if r.status_code == 429 or (500 <= r.status_code < 600):
+                    raise requests.HTTPError(f"{r.status_code} Server/Rate Limit", response=r)
+                return r
+            except (requests.ConnectionError, requests.Timeout, RemoteDisconnected, requests.HTTPError) as e:
+                last_err = e
+                if attempt == retries:
+                    raise
+                base_sleep = (backoff ** (attempt - 1))
+                jitter = random.uniform(0, 0.4)
+                extra = 1.5 if isinstance(e, requests.HTTPError) and getattr(e, "response", None) is not None and e.response.status_code == 429 else 0.0
+                time.sleep(base_sleep + jitter + extra)
+        raise last_err
+    
     def search_cases(self, search_params, max_results=100):
         """
         Search for cases using the provided parameters
@@ -51,7 +75,7 @@ class CBOSAScraper:
                     raise
 
             # First, get the search form to understand its structure
-            response = self.session.get(self.search_url)
+            response = self._get_with_retry(self.search_url, retries=4, backoff=1.6, timeout=(5, 30))
             response.raise_for_status()
 
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -347,7 +371,7 @@ class CBOSAScraper:
                 next_url = urljoin(self.base_url, next_link)
                 logger.info(f"Fetching next page: {next_url}")
                 
-                response = self.session.get(next_url)
+                response = self._get_with_retry(next_url, retries=3, backoff=1.6, timeout=(5, 30))
                 response.raise_for_status()
                 
                 current_content = response.content
@@ -403,7 +427,7 @@ class CBOSAScraper:
         """Download RTF content for a specific case"""
         try:
             time.sleep(self.delay)
-            response = self.session.get(case_url)
+            response = self._get_with_retry(case_url, retries=4, backoff=1.6, timeout=(5, 30))
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -432,7 +456,7 @@ class CBOSAScraper:
             rtf_url = urljoin(self.base_url, rtf_link)
             time.sleep(self.delay)
             
-            rtf_response = self.session.get(rtf_url)
+            rtf_response = self._get_with_retry(rtf_url, retries=5, backoff=1.8, timeout=(5, 45))
             rtf_response.raise_for_status()
             
             return rtf_response.content
