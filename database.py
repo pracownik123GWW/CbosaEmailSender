@@ -53,7 +53,7 @@ class UserSubscription(Base):
     __tablename__ = 'user_subscriptions'
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     search_config_id = Column(BigInteger, ForeignKey('search_configurations.id', ondelete='CASCADE'), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -202,7 +202,7 @@ class DatabaseManager:
             return subscription
     
     # Metody dla logów wykonania
-    def create_execution_log(self, search_config_id: str, status: str = 'started') -> ExecutionLog:
+    def create_execution_log(self, search_config_id: int, status: str = 'started') -> ExecutionLog:
         """Utwórz nowy log wykonania"""
         with self.get_session() as session:
             log = ExecutionLog(
