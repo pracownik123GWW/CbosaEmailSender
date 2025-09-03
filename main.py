@@ -98,23 +98,22 @@ def main():
         logger.error(f"❌ Brak wymaganych zmiennych środowiskowych: {', '.join(missing_vars)}")
         return
     
-    # Utwórz aplikację
     app = CBOSABotApplication()
     
     try:
-        # Zainicjalizuj bazę danych
         logger.info("🗄️ Inicjalizacja bazy danych...")
         app.db_manager.init_database()
         
         # Uruchom harmonogram
-        app.start_scheduler()
+        #app.start_scheduler()
         
         logger.info("✅ CBOSA Bot działa i jest zaplanowany")
         
-        # Dla testów możesz odkomentować poniższą linię
-        # app.run_manual_test()
+        app.run_manual_test()
+        app.stop()  # porządek, choć scheduler nie został uruchomiony
+        logger.info("✅ Zakończono jednorazowe uruchomienie (tryb testowy)")
+        return
         
-        # Utrzymuj aplikację uruchomioną
         try:
             while True:
                 time.sleep(1)
