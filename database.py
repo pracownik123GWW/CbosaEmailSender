@@ -11,7 +11,6 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy import BigInteger, create_engine, Column, String, Integer, DateTime, Boolean, JSON, Text, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
-import uuid
 
 logger = logging.getLogger(__name__)
 
