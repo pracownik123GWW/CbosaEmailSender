@@ -18,6 +18,7 @@ from brevo_service import BrevoEmailService, EmailRecipient
 from cbosa_scraper.cbosa_scraper import CBOSAScraper
 from cbosa_scraper.ai_judgment_analyzer import JudgmentAnalyzer
 from cbosa_scraper.newsletter_generator import NewsletterGenerator
+from file_helpers import build_judgments_zip
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +72,13 @@ class CBOSABot:
         
         # Utwórz log wykonania
         execution_log = self.db_manager.create_execution_log(
-            search_config_id=str(config.id),
+            search_config_id=config.id,
             status='started'
         )
         
         results = {
             'success': False,
-            'execution_log_id': str(execution_log.id),
+            'execution_log_id': execution_log.id,
             'cases_found': 0,
             'cases_analyzed': 0,
             'emails_sent': 0,
@@ -132,9 +133,21 @@ class CBOSABot:
                 stats=analysis_result['stats']
             )
             
+            #  Krok 3.5: Zbudowanie ZIP z orzeczeniami
+            logger.info("🗜️ Budowanie pliku ZIP z orzeczeniami...")
+            zip_bytes, zip_name = build_judgments_zip(successful_downloads)
+
+            attachments = []
+            if zip_bytes:
+                attachments.append({
+                    "filename": zip_name,
+                    "content": zip_bytes,
+                    "mimetype": "application/zip"
+                })
+            
             # Krok 4: Wysyłka newsletterów
             logger.info("📧 Wysyłanie newsletterów do subskrybentów...")
-            subscribers = self.db_manager.get_subscriptions_for_config(str(config.id))
+            subscribers = self.db_manager.get_subscriptions_for_config(config.id)
             
             if not subscribers:
                 logger.info("📪 Brak subskrybentów dla tej konfiguracji wyszukiwania")
@@ -144,7 +157,7 @@ class CBOSABot:
             # Pobierz szczegóły użytkowników-subskrybentów
             recipients = []
             for subscription in subscribers:
-                user = self.db_manager.get_user(str(subscription.user_id))
+                user = self.db_manager.get_user(subscription.user_id)
                 if user and user.is_active:
                     recipients.append(EmailRecipient(
                         email=user.email,
@@ -160,7 +173,8 @@ class CBOSABot:
             email_results = self.email_service.send_bulk_newsletter(
                 recipients=recipients,
                 newsletter_html=newsletter_html,
-                config_name=config.name
+                config_name=config.name,
+                attachments=attachments
             )
             
             # Zapisz logi emaili
@@ -170,8 +184,8 @@ class CBOSABot:
                 
                 if user:
                     self.db_manager.create_email_log(
-                        execution_log_id=str(execution_log.id),
-                        user_id=str(user.id),
+                        execution_log_id=execution_log.id,
+                        user_id=user.id,
                         email=recipient.email,
                         status='sent' if email_result.success else 'failed',
                         brevo_message_id=email_result.message_id,
@@ -197,7 +211,7 @@ class CBOSABot:
             
             # Zaktualizuj log wykonania z błędem
             self.db_manager.update_execution_log(
-                log_id=str(execution_log.id),
+                log_id=execution_log.id,
                 status='failed',
                 completed_at=datetime.utcnow(),
                 cases_found=results['cases_found'],
