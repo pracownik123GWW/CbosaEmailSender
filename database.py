@@ -123,7 +123,7 @@ class DatabaseManager:
         return self.SessionLocal()
     
     # Metody dla użytkowników
-    def get_user(self, user_id: str) -> Optional[User]:
+    def get_user(self, user_id: int) -> Optional[User]:
         """Pobierz użytkownika po ID"""
         with self.get_session() as session:
             return session.query(User).filter(User.id == user_id).first()
@@ -148,7 +148,7 @@ class DatabaseManager:
             return session.query(User).filter(User.is_active).all()
     
     # Metody dla konfiguracji wyszukiwania
-    def get_search_configuration(self, config_id: str) -> Optional[SearchConfiguration]:
+    def get_search_configuration(self, config_id: int) -> Optional[SearchConfiguration]:
         """Pobierz konfigurację wyszukiwania po ID"""
         with self.get_session() as session:
             return session.query(SearchConfiguration).filter(SearchConfiguration.id == config_id).first()
@@ -173,7 +173,7 @@ class DatabaseManager:
             return config
     
     # Metody dla subskrypcji
-    def get_user_subscriptions(self, user_id: str) -> List[UserSubscription]:
+    def get_user_subscriptions(self, user_id: int) -> List[UserSubscription]:
         """Pobierz subskrypcje użytkownika"""
         with self.get_session() as session:
             return session.query(UserSubscription).filter(
@@ -181,7 +181,7 @@ class DatabaseManager:
                 UserSubscription.is_active
             ).all()
     
-    def get_subscriptions_for_config(self, search_config_id: str) -> List[UserSubscription]:
+    def get_subscriptions_for_config(self, search_config_id: int) -> List[UserSubscription]:
         """Pobierz subskrypcje dla określonej konfiguracji"""
         with self.get_session() as session:
             return session.query(UserSubscription).filter(
@@ -189,7 +189,7 @@ class DatabaseManager:
                 UserSubscription.is_active
             ).all()
     
-    def create_user_subscription(self, user_id: str, search_config_id: str) -> UserSubscription:
+    def create_user_subscription(self, user_id: int, search_config_id: int) -> UserSubscription:
         """Utwórz nową subskrypcję"""
         with self.get_session() as session:
             subscription = UserSubscription(
@@ -214,7 +214,7 @@ class DatabaseManager:
             session.refresh(log)
             return log
     
-    def update_execution_log(self, log_id: str, **updates) -> Optional[ExecutionLog]:
+    def update_execution_log(self, log_id: int, **updates) -> Optional[ExecutionLog]:
         """Zaktualizuj log wykonania"""
         with self.get_session() as session:
             log = session.query(ExecutionLog).filter(ExecutionLog.id == log_id).first()
@@ -231,8 +231,8 @@ class DatabaseManager:
             return session.query(ExecutionLog).order_by(ExecutionLog.started_at.desc()).limit(limit).all()
     
     # Metody dla logów emaili
-    def create_email_log(self, execution_log_id: str, user_id: str, email: str, status: str, 
-                        brevo_message_id: str = None, error_message: str = None) -> EmailLog:
+    def create_email_log(self, execution_log_id: int, user_id: int, email: str, status: str, 
+                        brevo_message_id: int = None, error_message: str = None) -> EmailLog:
         """Utwórz nowy log emaila"""
         with self.get_session() as session:
             log = EmailLog(
@@ -248,7 +248,7 @@ class DatabaseManager:
             session.refresh(log)
             return log
     
-    def get_email_logs_for_execution(self, execution_log_id: str) -> List[EmailLog]:
+    def get_email_logs_for_execution(self, execution_log_id: int) -> List[EmailLog]:
         """Pobierz logi emaili dla określonego wykonania"""
         with self.get_session() as session:
             return session.query(EmailLog).filter(EmailLog.execution_log_id == execution_log_id).all()
