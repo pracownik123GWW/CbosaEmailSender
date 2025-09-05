@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from sqlalchemy import BigInteger, create_engine, Column, String, Integer, DateTime, Boolean, JSON, Text, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,20 @@ class DatabaseManager:
         if not self.database_url:
             raise ValueError("DATABASE_URL nie jest ustawione")
         
-        self.engine = create_engine(self.database_url)
+        self.engine = create_engine(
+            self.database_url,
+            pool_pre_ping=True,        # ping przed użyciem połączenia – usuwa „stale connections”
+            pool_recycle=1800,         # recykling co 30 min (ustaw < idle-timeout po stronie serwera)
+            pool_size=5,
+            max_overflow=10,
+            connect_args={
+                "sslmode": "require",      # jeśli Twój dostawca wymaga SSL
+                "keepalives": 1,           # TCP keepalive (psycopg2)
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 3,
+            }
+        )
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         
     def init_database(self):
@@ -145,7 +158,7 @@ class DatabaseManager:
     def get_all_active_users(self) -> List[User]:
         """Pobierz wszystkich aktywnych użytkowników"""
         with self.get_session() as session:
-            return session.query(User).filter(User.is_active).all()
+            return session.query(User).filter(User.is_active.is_(True)).all()
     
     # Metody dla konfiguracji wyszukiwania
     def get_search_configuration(self, config_id: int) -> Optional[SearchConfiguration]:
@@ -156,7 +169,7 @@ class DatabaseManager:
     def get_all_active_search_configurations(self) -> List[SearchConfiguration]:
         """Pobierz wszystkie aktywne konfiguracje wyszukiwania"""
         with self.get_session() as session:
-            return session.query(SearchConfiguration).filter(SearchConfiguration.is_active).all()
+            return session.query(SearchConfiguration).filter(SearchConfiguration.is_active.is_(True)).all()
     
     def create_search_configuration(self, name: str, description: str, search_params: Dict[str, Any], max_results: int = 50) -> SearchConfiguration:
         """Utwórz nową konfigurację wyszukiwania"""
@@ -178,7 +191,7 @@ class DatabaseManager:
         with self.get_session() as session:
             return session.query(UserSubscription).filter(
                 UserSubscription.user_id == user_id,
-                UserSubscription.is_active
+                UserSubscription.is_active.is_(True)
             ).all()
     
     def get_subscriptions_for_config(self, search_config_id: int) -> List[UserSubscription]:
@@ -186,7 +199,7 @@ class DatabaseManager:
         with self.get_session() as session:
             return session.query(UserSubscription).filter(
                 UserSubscription.search_config_id == search_config_id,
-                UserSubscription.is_active
+                UserSubscription.is_active.is_(True)
             ).all()
     
     def create_user_subscription(self, user_id: int, search_config_id: int) -> UserSubscription:
@@ -232,7 +245,7 @@ class DatabaseManager:
     
     # Metody dla logów emaili
     def create_email_log(self, execution_log_id: int, user_id: int, email: str, status: str, 
-                        brevo_message_id: int = None, error_message: str = None) -> EmailLog:
+                        brevo_message_id: str = None, error_message: str = None) -> EmailLog:
         """Utwórz nowy log emaila"""
         with self.get_session() as session:
             log = EmailLog(

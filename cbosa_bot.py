@@ -137,13 +137,7 @@ class CBOSABot:
             logger.info("🗜️ Budowanie pliku ZIP z orzeczeniami...")
             zip_bytes, zip_name = build_judgments_zip(successful_downloads)
 
-            attachments = []
-            if zip_bytes:
-                attachments.append({
-                    "filename": zip_name,
-                    "content": zip_bytes,
-                    "mimetype": "application/zip"
-                })
+            attachments = [(zip_name, zip_bytes)] if zip_bytes else None
             
             # Krok 4: Wysyłka newsletterów
             logger.info("📧 Wysyłanie newsletterów do subskrybentów...")
@@ -213,7 +207,7 @@ class CBOSABot:
             self.db_manager.update_execution_log(
                 log_id=execution_log.id,
                 status='failed',
-                completed_at=datetime.utcnow(),
+                completed_at=datetime.now(datetime.timezone.utc),
                 cases_found=results['cases_found'],
                 cases_analyzed=results['cases_analyzed'],
                 emails_sent=results['emails_sent'],
