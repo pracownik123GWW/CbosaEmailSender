@@ -24,7 +24,7 @@ class EmailRecipient:
 class EmailContent:
     """Zawartość emaila"""
     subject: str
-    html_content: str
+    email_body: str
     text_content: Optional[str] = None
 
 @dataclass
@@ -78,7 +78,7 @@ class BrevoEmailService:
                     }
                 ],
                 'subject': content.subject,
-                'htmlContent': content.html_content
+                'htmlContent': content.email_body
             }
             
             if content.text_content:
@@ -196,7 +196,7 @@ class BrevoEmailService:
                 'sender': {'email': sender_email, 'name': sender_name},
                 'to': [{'email': recipient.email, 'name': recipient.name}],
                 'subject': content.subject,
-                'htmlContent': content.html_content,
+                'htmlContent': content.email_body,
             }
             if content.text_content:
                 payload['textContent'] = content.text_content
@@ -276,7 +276,7 @@ class BrevoEmailService:
     def send_bulk_newsletter(
         self,
         recipients: List[EmailRecipient],
-        newsletter_html: str,
+        email_body: str,
         config_name: str,
         attachments: Optional[List[Union[str, Tuple[str, bytes], Dict[str, str]]]] = None,
     ) -> List[EmailSendResult]:
@@ -289,7 +289,7 @@ class BrevoEmailService:
 
         content = EmailContent(
             subject=subject,
-            html_content=newsletter_html,
+            email_body=email_body,
             text_content="Biuletyn dostępny jest w wersji HTML. Proszę włączyć wyświetlanie HTML w kliencie email."
         )
 
