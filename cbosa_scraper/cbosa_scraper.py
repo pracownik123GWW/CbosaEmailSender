@@ -8,8 +8,6 @@ import json
 from http.client import RemoteDisconnected
 import random
 
-logger = logging.getLogger(__name__)
-
 
 class CBOSAScraper:
     """Scraper for CBOSA (Central Database of Administrative Court Judgments)"""
@@ -25,6 +23,7 @@ class CBOSAScraper:
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
         self.date_filter = DateFilterManager()
+        self.logger = logging.getLogger(__name__)
 
     def _get_with_retry(self, url, *, retries=4, backoff=1.6, timeout=(5, 40)):
         """
@@ -54,7 +53,7 @@ class CBOSAScraper:
         Returns list of case URLs
         """
         try:
-            logger.info(
+            self.logger.info(
                 "Starting search with params:\n%s",
                 json.dumps(search_params, indent=2, ensure_ascii=False))
 
@@ -67,11 +66,11 @@ class CBOSAScraper:
                 try:
                     date_filter_info = self.date_filter.prepare_cbosa_dates(
                         date_from_str, date_to_str)
-                    logger.info(
+                    self.logger.info(
                         f"Date filtering enabled: {self.date_filter.get_date_filter_summary(date_from_str, date_to_str)}"
                     )
                 except ValueError as e:
-                    logger.error(f"Date validation error: {e}")
+                    self.logger.exception(f"Date validation error: {e}")
                     raise
 
             # First, get the search form to understand its structure
@@ -86,7 +85,7 @@ class CBOSAScraper:
             # Add date parameters to CBOSA form if provided
             if date_filter_info and date_filter_info['cbosa_params']:
                 form_data.update(date_filter_info['cbosa_params'])
-                logger.info(
+                self.logger.info(
                     f"Added CBOSA date params: {date_filter_info['cbosa_params']}"
                 )
 
@@ -101,20 +100,20 @@ class CBOSAScraper:
                                                        search_response.url,
                                                        max_results)
 
-            logger.info(
+            self.logger.info(
                 f"Found {len(case_data)} cases from CBOSA (before local filtering)"
             )
 
             # Skip local date filtering - CBOSA handles date filtering correctly
             # The signature year (e.g., /24) doesn't necessarily match the judgment date
-            logger.info("Using CBOSA's date filtering results without additional local filtering")
+            self.logger.info("Using CBOSA's date filtering results without additional local filtering")
 
-            logger.info(
+            self.logger.info(
                 f"Final result: {len(case_data)} cases after all filtering")
             return case_data
 
         except Exception as e:
-            logger.error(f"Error in search_cases: {str(e)}")
+            self.logger.exception(f"Error in search_cases: {str(e)}")
             raise
 
     def _prepare_form_data(self, search_params, soup):
@@ -196,19 +195,19 @@ class CBOSAScraper:
                         form_data[form_key] = value
 
         # Log the final form data for debugging
-        logger.info("Form data being sent to CBOSA:")
+        self.logger.info("Form data being sent to CBOSA:")
         for key, value in form_data.items():
-            logger.info(f"  {key}: {value}")
+            self.logger.info(f"  {key}: {value}")
 
         # Special debug for judgment type issue
         if 'rodzaj' in form_data:
-            logger.info(
+            self.logger.info(
                 f">>> JUDGMENT TYPE DEBUG: rodzaj = '{form_data['rodzaj']}'")
         else:
-            logger.info(
+            self.logger.info(
                 ">>> JUDGMENT TYPE DEBUG: 'rodzaj' field is MISSING from form data!"
             )
-            logger.info(
+            self.logger.info(
                 f">>> Original judgment_type parameter: '{search_params.get('judgment_type', 'NOT_SET')}'"
             )
 
@@ -243,7 +242,7 @@ class CBOSAScraper:
 
                     # Avoid duplicates by checking URL
                     if not any(case['url'] == full_url for case in case_data):
-                        logger.info(
+                        self.logger.info(
                             f"✅ Primary result: {signature} (parent classes: {parent_classes})"
                         )
                         case_data.append({
@@ -254,17 +253,17 @@ class CBOSAScraper:
                             break
                 elif 'powiazane' in parent_classes:
                     signature = self._extract_signature_from_link(link, soup)
-                    logger.info(
+                    self.logger.info(
                         f"🔴 Skipping related case: {signature} (parent classes: {parent_classes})"
                     )
                 else:
-                    logger.debug(
+                    self.logger.debug(
                         f"⚪ Unknown link type: {href} (parent classes: {parent_classes})"
                     )
 
         # If no primary results found, look for alternative patterns but still respect class filtering
         if not case_data:
-            logger.warning(
+            self.loggerwarning(
                 "No primary results found with 'info-list-value' class, checking alternative patterns..."
             )
             # Look for any links that might be case results, but still check parent classes
@@ -282,7 +281,7 @@ class CBOSAScraper:
 
                         if not any(case['url'] == full_url
                                    for case in case_data):
-                            logger.info(
+                            self.logger.info(
                                 f"⚡ Fallback result: {signature} (parent classes: {parent_classes})"
                             )
                             case_data.append({
@@ -339,22 +338,22 @@ class CBOSAScraper:
         page_num = 1
 
         while len(all_case_data) < max_results:
-            logger.info(f"Parsing results page {page_num}")
+            self.logger.info(f"Parsing results page {page_num}")
 
             # Parse current page
             remaining_needed = max_results - len(all_case_data)
             page_cases = self._parse_search_results(current_content, remaining_needed)
 
             if not page_cases:
-                logger.info(f"No more cases found on page {page_num}")
+                self.logger.info(f"No more cases found on page {page_num}")
                 break
 
             all_case_data.extend(page_cases)
-            logger.info(f"Page {page_num}: found {len(page_cases)} cases, total: {len(all_case_data)}")
+            self.logger.info(f"Page {page_num}: found {len(page_cases)} cases, total: {len(all_case_data)}")
 
             # Check if we have enough results
             if len(all_case_data) >= max_results:
-                logger.info(f"Reached maximum results limit: {max_results}")
+                self.logger.info(f"Reached maximum results limit: {max_results}")
                 break
 
             # Look for next page link
@@ -362,14 +361,14 @@ class CBOSAScraper:
             next_link = self._find_next_page_link(soup)
 
             if not next_link:
-                logger.info("No next page found, stopping pagination")
+                self.logger.info("No next page found, stopping pagination")
                 break
 
             # Get next page
             try:
                 time.sleep(self.delay)
                 next_url = urljoin(self.base_url, next_link)
-                logger.info(f"Fetching next page: {next_url}")
+                self.logger.info(f"Fetching next page: {next_url}")
                 
                 response = self._get_with_retry(next_url, retries=3, backoff=1.6, timeout=(5, 30))
                 response.raise_for_status()
@@ -378,7 +377,7 @@ class CBOSAScraper:
                 page_num += 1
 
             except Exception as e:
-                logger.error(f"Error fetching next page: {e}")
+                self.logger.exception(f"Error fetching next page: {e}")
                 break
 
         return all_case_data[:max_results]  # Ensure we don't exceed limit
@@ -405,7 +404,7 @@ class CBOSAScraper:
             # Check if this looks like a next page link
             for pattern in next_patterns:
                 if pattern in link_text:
-                    logger.info(f"Found next page link: {href} (text: '{link_text}')")
+                    self.logger.info(f"Found next page link: {href} (text: '{link_text}')")
                     return href
         
         # Also look for numbered pagination (e.g., page 2, 3, etc.)
@@ -418,7 +417,7 @@ class CBOSAScraper:
                 if page_match:
                     page_num = int(page_match.group(2))
                     if page_num > 1:  # Assuming we start from page 1
-                        logger.info(f"Found numbered next page: {href} (page {page_num})")
+                        self.logger.info(f"Found numbered next page: {href} (page {page_num})")
                         return href
         
         return None
@@ -449,7 +448,7 @@ class CBOSAScraper:
                     break
             
             if not rtf_link:
-                logger.warning(f"No RTF download link found for {case_url}")
+                self.loggerwarning(f"No RTF download link found for {case_url}")
                 return None
             
             # Download RTF content
@@ -462,7 +461,7 @@ class CBOSAScraper:
             return rtf_response.content
             
         except Exception as e:
-            logger.error(f"Error downloading RTF for {case_url}: {e}")
+            self.logger.exception(f"Error downloading RTF for {case_url}: {e}")
             return None
 
     def download_multiple_cases(self, case_data, progress_callback=None):
@@ -474,7 +473,7 @@ class CBOSAScraper:
             case_url = case['url']
             signature = case['signature']
             
-            logger.info(f"Downloading {i}/{total_cases}: {signature}")
+            self.logger.info(f"Downloading {i}/{total_cases}: {signature}")
             
             rtf_content = self.download_case_rtf(case_url)
             
@@ -490,6 +489,6 @@ class CBOSAScraper:
                 progress_callback(i, total_cases, result['success'])
         
         successful_downloads = sum(1 for r in results if r['success'])
-        logger.info(f"Downloaded {successful_downloads}/{total_cases} cases successfully")
+        self.logger.info(f"Downloaded {successful_downloads}/{total_cases} cases successfully")
         
         return results

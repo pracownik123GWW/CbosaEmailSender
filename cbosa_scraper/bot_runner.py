@@ -35,7 +35,7 @@ def scrape_cbosa_cases(search_params: Dict[str, Any], max_results: int = 50) -> 
         return successful_downloads
 
     except Exception as e:
-        logger.error(f"Error in CBOSA scraping: {e}")
+        logger.exception(f"Error in CBOSA scraping: {e}")
         raise
 
 def analyze_cases_with_ai(cases_data: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -77,7 +77,7 @@ def analyze_cases_with_ai(cases_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Error in AI analysis: {e}")
+        logger.exception(f"Error in AI analysis: {e}")
         raise
 
 def build_attachments(analysis_data: Dict[str, Any], search_params: Dict[str, Any], successful_downloads: List[Dict[str, Any]], output_dir: str = "./out") -> Dict[str, Any]:
@@ -154,7 +154,7 @@ def main():
             raise ValueError(f"Unknown command: {command}")
 
     except Exception as e:
-        logger.error(f"Error in bot runner: {e}")
+        logger.exception(f"Error in bot runner: {e}")
         print(json.dumps({"error": str(e)}))
         sys.exit(1)
 

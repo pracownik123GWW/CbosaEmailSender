@@ -12,8 +12,6 @@ from sqlalchemy import BigInteger, create_engine, Column, String, Integer, DateT
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 
-logger = logging.getLogger(__name__)
-
 Base = declarative_base()
 
 class User(Base):
@@ -121,14 +119,15 @@ class DatabaseManager:
             }
         )
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        self.logger = logging.getLogger(__name__)
         
     def init_database(self):
         """Zainicjalizuj tabele bazy danych"""
         try:
             Base.metadata.create_all(bind=self.engine)
-            logger.info("✅ Tabele bazy danych zostały zainicjalizowane")
+            self.logger.info("✅ Tabele bazy danych zostały zainicjalizowane")
         except Exception as e:
-            logger.error(f"❌ Błąd podczas inicjalizacji bazy danych: {e}")
+            self.logger.error(f"❌ Błąd podczas inicjalizacji bazy danych: {e}")
             raise
     
     def get_session(self) -> Session:
