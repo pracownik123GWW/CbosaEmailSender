@@ -82,7 +82,7 @@ Orzeczenie do analizy:
             return None
             
         except Exception as e:
-            self.logger.error(f"Error extracting case signature: {e}")
+            self.logger.exception(f"Error extracting case signature: {e}")
             return None
 
     def extract_text_from_rtf(self, rtf_content: str) -> str:
@@ -94,7 +94,7 @@ Orzeczenie do analizy:
             text = ' '.join(text.split())  # Normalize whitespace
             return text
         except Exception as e:
-            self.logger.error(f"Error extracting text from RTF: {e}")
+            self.logger.exception(f"Error extracting text from RTF: {e}")
             return rtf_content  # Fallback to original content
 
     def analyze_judgment(self, rtf_content: str, case_info: Optional[Dict] = None) -> Dict:
@@ -162,7 +162,7 @@ Orzeczenie do analizy:
             return result
             
         except Exception as e:
-            self.logger.error(f"Error analyzing judgment: {e}")
+            self.logger.exception(f"Error analyzing judgment: {e}")
             return {
                 "success": False,
                 "analysis": None,
@@ -211,7 +211,7 @@ Orzeczenie do analizy:
                 successful_analyses += 1
                 self.logger.info(f"✓ Judgment {i}/{total_judgments} analyzed successfully")
             else:
-                self.logger.error(f"✗ Judgment {i}/{total_judgments} failed: {result['error']}")
+                self.logger.exception(f"✗ Judgment {i}/{total_judgments} failed: {result['error']}")
         
         self.logger.info(f"Analysis complete. {successful_analyses}/{total_judgments} successful")
         return results

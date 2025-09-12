@@ -6,8 +6,6 @@ from typing import List, Dict, Tuple, Optional
 from .docx_newsletter import DocxNewsletterGenerator
 from file_helpers import build_judgments_zip  # już masz
 
-logger = logging.getLogger(__name__)
-
 Attachment = Tuple[str, bytes, str]  # (filename, content, mime)
 
 class EmailAttachmentBuilder:
@@ -16,6 +14,7 @@ class EmailAttachmentBuilder:
         os.makedirs(self.output_dir, exist_ok=True)
         self.docx_gen = DocxNewsletterGenerator(output_dir=output_dir)
         self._temp_files = []
+        self.logger = logging.getLogger(__name__)
 
     def _read_bytes(self, path: str) -> bytes:
         with open(path, "rb") as f:

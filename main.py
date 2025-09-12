@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-CBOSA Bot - Główna aplikacja w Python
-Automatyczny bot do analizy orzeczeń sądowych i wysyłki newsletterów
-"""
-
 import os
 import logging
 import schedule
@@ -18,15 +12,13 @@ from cbosa_bot import CBOSABot
 # Załaduj zmienne środowiskowe
 load_dotenv()
 
-
-
 # Konfiguracja logowania
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-logger = logging.getLogger(__name__)
+
 
 class CBOSABotApplication:
     """Główna aplikacja CBOSA Bot"""
@@ -36,18 +28,19 @@ class CBOSABotApplication:
         self.email_service = BrevoEmailService()
         self.bot = CBOSABot(self.db_manager, self.email_service)
         self.running = False
+        self.logger = logging.getLogger(__name__)
         
     def start_scheduler(self):
         """Uruchom harmonogram wykonywania zadań"""
         # Harmonogram: każdy poniedziałek o 7:00
         schedule.every().monday.at("07:00").do(self.run_scheduled_task)
         
-        logger.info("⏰ Harmonogram uruchomiony - bot będzie działał w każdy poniedziałek o 7:00")
+        self.logger.info("⏰ Harmonogram uruchomiony - bot będzie działał w każdy poniedziałek o 7:00")
         
         # Wyświetl informacje o następnym uruchomieniu
         next_run = schedule.next_run()
         if next_run:
-            logger.info(f"📅 Następne uruchomienie: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+            self.logger.info(f"📅 Następne uruchomienie: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
         
         self.running = True
         
@@ -63,31 +56,32 @@ class CBOSABotApplication:
     
     def run_scheduled_task(self):
         """Wykonaj zaplanowane zadanie bota"""
-        logger.info("🤖 Rozpoczęcie zaplanowanego uruchomienia CBOSA Bot...")
+        self.logger.info("🤖 Rozpoczęcie zaplanowanego uruchomienia CBOSA Bot...")
         
         try:
             self.bot.execute_scheduled_run()
-            logger.info("✅ Zaplanowane uruchomienie zakończone pomyślnie")
-        except Exception as e:
-            logger.error(f"❌ Błąd podczas zaplanowanego uruchomienia: {e}")
+            self.logger.info("✅ Zaplanowane uruchomienie zakończone pomyślnie")
+        except Exception:
+            self.logger.exception("❌ Błąd podczas zaplanowanego uruchomienia")
     
     def run_manual_test(self):
         """Uruchom test ręczny (do celów debugowania)"""
-        logger.info("🚀 Ręczne uruchomienie testowe...")
+        self.logger.info("🚀 Ręczne uruchomienie testowe...")
         try:
             self.bot.execute_scheduled_run()
-            logger.info("✅ Test ręczny zakończony pomyślnie")
-        except Exception as e:
-            logger.error(f"❌ Błąd podczas testu ręcznego: {e}")
+            self.logger.info("✅ Test ręczny zakończony pomyślnie")
+        except Exception:
+            self.logger.exception("❌ Błąd podczas testu ręcznego")
     
     def stop(self):
         """Zatrzymaj aplikację"""
-        logger.info("📴 Zatrzymywanie aplikacji...")
+        self.logger.info("📴 Zatrzymywanie aplikacji...")
         self.running = False
         schedule.clear()
 
 def main():
     """Główna funkcja aplikacji"""
+    logger = logging.getLogger(__name__)
     logger.info("🤖 CBOSA Bot uruchamia się...")
     
     # Sprawdź wymagane zmienne środowiskowe
@@ -95,7 +89,7 @@ def main():
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     
     if missing_vars:
-        logger.error(f"❌ Brak wymaganych zmiennych środowiskowych: {', '.join(missing_vars)}")
+        logger.exception("❌ Brak wymaganych zmiennych środowiskowych")
         return
     
     app = CBOSABotApplication()
@@ -120,8 +114,8 @@ def main():
         except KeyboardInterrupt:
             logger.info("📴 Otrzymano sygnał przerwania...")
         
-    except Exception as e:
-        logger.error(f"❌ Krytyczny błąd aplikacji: {e}")
+    except Exception:
+        logger.exception("❌ Krytyczny błąd aplikacji")
     finally:
         app.stop()
         logger.info("📴 CBOSA Bot zatrzymany")

@@ -7,12 +7,13 @@ from docx import Document
 from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-logger = logging.getLogger(__name__)
+
 
 class DocxNewsletterGenerator:
     def __init__(self, output_dir: str = "./out"):
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
+        self.logger = logging.getLogger(__name__)
 
     def create(self, analyses: List[Dict], search_params: Dict, stats: Dict) -> str:
         """
@@ -63,5 +64,5 @@ class DocxNewsletterGenerator:
                 doc.add_page_break()
 
         doc.save(output_path)
-        logger.info("DOCX newsletter generated: %s", output_path)
+        self.logger.info("DOCX newsletter generated: %s", output_path)
         return output_path

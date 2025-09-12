@@ -10,6 +10,7 @@ import logging
 from typing import List, Dict, Any
 from datetime import datetime, timezone
 from string import Template
+import traceback
 
 # Dodaj ścieżkę do modułów Python
 sys.path.append(os.path.join(os.path.dirname(__file__), 'python'))
@@ -20,8 +21,6 @@ from cbosa_scraper.cbosa_scraper import CBOSAScraper
 from cbosa_scraper.ai_judgment_analyzer import JudgmentAnalyzer
 from cbosa_scraper.attachments import EmailAttachmentBuilder
 
-logger = logging.getLogger(__name__)
-
 class CBOSABot:
     """Główna klasa orchestracji CBOSA Bot"""
     
@@ -31,31 +30,32 @@ class CBOSABot:
         self.scraper = CBOSAScraper(delay_between_requests=0.5)
         self.analyzer = JudgmentAnalyzer()
         self.attachments_builder = EmailAttachmentBuilder(output_dir="./out")
+        self.logger = logging.getLogger(__name__)
         
-        logger.info("🤖 CBOSA Bot zainicjalizowany")
+        self.logger.info("🤖 CBOSA Bot zainicjalizowany")
     
     def execute_scheduled_run(self):
         """Wykonaj zaplanowane uruchomienie bota"""
-        logger.info("🤖 Rozpoczęcie zaplanowanego uruchomienia CBOSA Bot...")
+        self.logger.info("🤖 Rozpoczęcie zaplanowanego uruchomienia CBOSA Bot...")
         
         try:
             # Pobierz wszystkie aktywne konfiguracje wyszukiwania
             search_configs = self.db_manager.get_all_active_search_configurations()
             
             if not search_configs:
-                logger.warning("⚠️ Nie znaleziono aktywnych konfiguracji wyszukiwania")
+                self.logger.warning("⚠️ Nie znaleziono aktywnych konfiguracji wyszukiwania")
                 return
             
-            logger.info(f"📋 Znaleziono {len(search_configs)} aktywnych konfiguracji wyszukiwania")
+            self.logger.info(f"📋 Znaleziono {len(search_configs)} aktywnych konfiguracji wyszukiwania")
             
             # Wykonaj każdą konfigurację wyszukiwania
             for config in search_configs:
                 self.execute_search_configuration(config)
             
-            logger.info("✅ Zaplanowane uruchomienie zakończone pomyślnie")
+            self.logger.info("✅ Zaplanowane uruchomienie zakończone pomyślnie")
             
         except Exception as e:
-            logger.error(f"❌ Błąd podczas zaplanowanego uruchomienia: {e}")
+            self.logger.exception("❌ Błąd podczas zaplanowanego uruchomienia")
             raise
     
     def execute_search_configuration(self, config: SearchConfiguration) -> Dict[str, Any]:
@@ -68,7 +68,7 @@ class CBOSABot:
         Returns:
             Wyniki wykonania
         """
-        logger.info(f"🔍 Wykonywanie konfiguracji wyszukiwania: {config.name}")
+        self.logger.info(f"🔍 Wykonywanie konfiguracji wyszukiwania: {config.name}")
         
         # Utwórz log wykonania
         execution_log = self.db_manager.create_execution_log(
@@ -87,45 +87,45 @@ class CBOSABot:
         
         try:
             # Krok 1: Scrapowanie CBOSA
-            logger.info("📥 Scrapowanie CBOSA w poszukiwaniu orzeczeń...")
+            self.logger.info("📥 Scrapowanie CBOSA w poszukiwaniu orzeczeń...")
             case_data = self.scraper.search_cases(
                 config.search_params,
                 max_results=config.max_results
             )
             
             if not case_data:
-                logger.info("📭 Nie znaleziono orzeczeń dla tej konfiguracji wyszukiwania")
+                self.logger.info("📭 Nie znaleziono orzeczeń dla tej konfiguracji wyszukiwania")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
             
             results['cases_found'] = len(case_data)
-            logger.info(f"📊 Znaleziono {results['cases_found']} orzeczeń")
+            self.logger.info(f"📊 Znaleziono {results['cases_found']} orzeczeń")
             
             # Pobierz treści RTF
-            logger.info("📄 Pobieranie treści orzeczeń...")
+            self.logger.info("📄 Pobieranie treści orzeczeń...")
             download_results = self.scraper.download_multiple_cases(case_data)
             successful_downloads = [r for r in download_results if r['success']]
             
             if not successful_downloads:
-                logger.warning("⚠️ Nie udało się pobrać żadnych treści orzeczeń")
+                self.logger.warning("⚠️ Nie udało się pobrać żadnych treści orzeczeń")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
             
-            logger.info(f"✅ Pobrano {len(successful_downloads)} treści orzeczeń")
+            self.logger.info(f"✅ Pobrano {len(successful_downloads)} treści orzeczeń")
             
             # Krok 2: Analiza AI
-            logger.info("🧠 Analiza orzeczeń za pomocą AI...")
+            self.logger.info("🧠 Analiza orzeczeń za pomocą AI...")
             analysis_result = self._analyze_cases_with_ai(successful_downloads)
             
             if not analysis_result['analyses']:
-                logger.warning("⚠️ Nie wygenerowano żadnych udanych analiz")
+                self.logger.warning("⚠️ Nie wygenerowano żadnych udanych analiz")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
             
             results['cases_analyzed'] = len(analysis_result['analyses'])
-            logger.info(f"✅ Przeanalizowano {results['cases_analyzed']} orzeczeń")
+            self.logger.info(f"✅ Przeanalizowano {results['cases_analyzed']} orzeczeń")
             
-            logger.info("📎 Budowanie załączników (DOCX, TXT, ZIP)...")
+            self.logger.info("📎 Budowanie załączników (DOCX, TXT, ZIP)...")
             attachments_triplets = self.attachments_builder.build_all(
                 analyses=analysis_result['analyses'],
                 search_params=config.search_params,
@@ -153,11 +153,11 @@ class CBOSABot:
             email_body = CBOSABot.render_file_template(html_tpl_path, context)
             
             # Krok 4: Wysyłka newsletterów
-            logger.info("📧 Wysyłanie newsletterów do subskrybentów...")
+            self.logger.info("📧 Wysyłanie newsletterów do subskrybentów...")
             subscribers = self.db_manager.get_subscriptions_for_config(config.id)
             
             if not subscribers:
-                logger.info("📪 Brak subskrybentów dla tej konfiguracji wyszukiwania")
+                self.logger.info("📪 Brak subskrybentów dla tej konfiguracji wyszukiwania")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
             
@@ -172,7 +172,7 @@ class CBOSABot:
                     ))
             
             if not recipients:
-                logger.info("📪 Brak aktywnych subskrybentów dla tej konfiguracji")
+                self.logger.info("📪 Brak aktywnych subskrybentów dla tej konfiguracji")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
             
@@ -205,7 +205,7 @@ class CBOSABot:
                         results['errors'].append(f"Email do {recipient.email}: {email_result.error}")
             
             results['success'] = True
-            logger.info(f"📬 Wysłano {results['emails_sent']} newsletterów pomyślnie")
+            self.logger.info(f"📬 Wysłano {results['emails_sent']} newsletterów pomyślnie")
             
             # Zaktualizuj log wykonania z sukcesem
             self._update_execution_log_completed(execution_log.id, results)
@@ -213,8 +213,11 @@ class CBOSABot:
             return results
             
         except Exception as e:
-            logger.error(f"❌ Błąd podczas wykonywania konfiguracji {config.name}: {e}")
-            results['errors'].append(str(e))
+            self.logger.exception("❌ Błąd podczas wykonywania konfiguracji")
+            results["errors"].append({
+                "message": str(e),
+                "traceback": traceback.format_exc()
+            })
             
             # Zaktualizuj log wykonania z błędem
             self.db_manager.update_execution_log(
@@ -245,7 +248,7 @@ class CBOSABot:
             Wyniki analizy
         """
         try:
-            logger.info(f"🧠 Rozpoczęcie analizy AI {len(cases_data)} orzeczeń")
+            self.logger.info(f"🧠 Rozpoczęcie analizy AI {len(cases_data)} orzeczeń")
             
             # Przygotuj orzeczenia do analizy
             judgments = []
@@ -269,7 +272,7 @@ class CBOSABot:
             # Filtruj udane analizy
             successful_analyses = [r for r in analysis_results if r['success']]
             
-            logger.info(f"✅ Analiza zakończona: {len(successful_analyses)} udanych analiz")
+            self.logger.info(f"✅ Analiza zakończona: {len(successful_analyses)} udanych analiz")
             
             return {
                 'analyses': successful_analyses,
@@ -278,7 +281,7 @@ class CBOSABot:
             }
             
         except Exception as e:
-            logger.error(f"❌ Błąd w analizie AI: {e}")
+            self.logger.exception("❌ Błąd w analizie AI")
             raise
     
     def _update_execution_log_completed(self, log_id: str, results: Dict[str, Any]):

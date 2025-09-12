@@ -12,8 +12,6 @@ from typing import List, Optional, Union, Dict, Tuple
 import base64
 from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
-
 @dataclass
 class EmailRecipient:
     """Odbiorca emaila"""
@@ -48,8 +46,8 @@ class BrevoEmailService:
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         }
-        
-        logger.info("✅ Serwis email Brevo zainicjalizowany")
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("✅ Serwis email Brevo zainicjalizowany")
     
     def _send_single_email(self, recipient: EmailRecipient, content: EmailContent,
                           sender_email: str, sender_name: str) -> EmailSendResult:
@@ -96,7 +94,7 @@ class BrevoEmailService:
                 response_data = response.json()
                 message_id = response_data.get('messageId')
                 
-                logger.debug(f"✅ Email wysłany do {recipient.email}, messageId: {message_id}")
+                self.logger.debug(f"✅ Email wysłany do {recipient.email}, messageId: {message_id}")
                 return EmailSendResult(
                     success=True,
                     message_id=message_id
@@ -104,7 +102,7 @@ class BrevoEmailService:
             else:
                 # Błąd
                 error_msg = f"Błąd HTTP {response.status_code}: {response.text}"
-                logger.error(f"❌ Błąd wysyłania do {recipient.email}: {error_msg}")
+                self.logger.exception(f"❌ Błąd wysyłania do {recipient.email}: {error_msg}")
                 return EmailSendResult(
                     success=False,
                     error=error_msg
@@ -112,21 +110,21 @@ class BrevoEmailService:
                 
         except requests.exceptions.Timeout:
             error_msg = "Timeout podczas wysyłania emaila"
-            logger.error(f"❌ {error_msg} do {recipient.email}")
+            self.logger.exception(f"❌ {error_msg} do {recipient.email}")
             return EmailSendResult(
                 success=False,
                 error=error_msg
             )
         except requests.exceptions.RequestException as e:
             error_msg = f"Błąd połączenia: {str(e)}"
-            logger.error(f"❌ {error_msg} do {recipient.email}")
+            self.logger.exception(f"❌ {error_msg} do {recipient.email}")
             return EmailSendResult(
                 success=False,
                 error=error_msg
             )
         except Exception as e:
             error_msg = f"Nieoczekiwany błąd: {str(e)}"
-            logger.error(f"❌ {error_msg} do {recipient.email}")
+            self.logger.exception(f"❌ {error_msg} do {recipient.email}")
             return EmailSendResult(
                 success=False,
                 error=error_msg
@@ -177,7 +175,7 @@ class BrevoEmailService:
                 time.sleep(0.1)  # delikatne odciążenie limitów API
 
         successful = sum(1 for r in results if r.success)
-        logger.info(f"📧 Wysłano {successful}/{len(results)} emaili pomyślnie")
+        self.logger.info(f"📧 Wysłano {successful}/{len(results)} emaili pomyślnie")
         return results
 
     def _send_single_email(
@@ -215,24 +213,24 @@ class BrevoEmailService:
             if response.status_code == 201:
                 response_data = response.json()
                 message_id = response_data.get('messageId')
-                logger.debug(f"✅ Email wysłany do {recipient.email}, messageId: {message_id}")
+                self.logger.debug(f"✅ Email wysłany do {recipient.email}, messageId: {message_id}")
                 return EmailSendResult(success=True, message_id=message_id)
 
             error_msg = f"Błąd HTTP {response.status_code}: {response.text}"
-            logger.error(f"❌ Błąd wysyłania do {recipient.email}: {error_msg}")
+            self.logger.exception(f"❌ Błąd wysyłania do {recipient.email}: {error_msg}")
             return EmailSendResult(success=False, error=error_msg)
 
         except requests.exceptions.Timeout:
             error_msg = "Timeout podczas wysyłania emaila"
-            logger.error(f"❌ {error_msg} do {recipient.email}")
+            self.logger.exception(f"❌ {error_msg} do {recipient.email}")
             return EmailSendResult(success=False, error=error_msg)
         except requests.exceptions.RequestException as e:
             error_msg = f"Błąd połączenia: {str(e)}"
-            logger.error(f"❌ {error_msg} do {recipient.email}")
+            self.logger.exception(f"❌ {error_msg} do {recipient.email}")
             return EmailSendResult(success=False, error=error_msg)
         except Exception as e:
             error_msg = f"Nieoczekiwany błąd: {str(e)}"
-            logger.error(f"❌ {error_msg} do {recipient.email}")
+            self.logger.exception(f"❌ {error_msg} do {recipient.email}")
             return EmailSendResult(success=False, error=error_msg)
 
     def _normalize_attachments(
@@ -293,7 +291,7 @@ class BrevoEmailService:
             text_content="Biuletyn dostępny jest w wersji HTML. Proszę włączyć wyświetlanie HTML w kliencie email."
         )
 
-        logger.info(f"📤 Wysyłanie newslettera '{config_name}' do {len(recipients)} odbiorców")
+        self.logger.info(f"📤 Wysyłanie newslettera '{config_name}' do {len(recipients)} odbiorców")
         return self.send_email(recipients, content, attachments=attachments)
     
     def test_connection(self) -> bool:
@@ -312,12 +310,12 @@ class BrevoEmailService:
             
             if response.status_code == 200:
                 account_info = response.json()
-                logger.info(f"✅ Połączenie z Brevo działa. Konto: {account_info.get('email', 'Unknown')}")
+                self.logger.info(f"✅ Połączenie z Brevo działa. Konto: {account_info.get('email', 'Unknown')}")
                 return True
             else:
-                logger.error(f"❌ Błąd połączenia z Brevo: HTTP {response.status_code}")
+                self.logger.exception(f"❌ Błąd połączenia z Brevo: HTTP {response.status_code}")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Błąd testowania połączenia z Brevo: {e}")
+            self.logger.exception(f"❌ Błąd testowania połączenia z Brevo: {e}")
             return False

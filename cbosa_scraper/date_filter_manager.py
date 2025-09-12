@@ -8,13 +8,12 @@ import re
 from datetime import datetime
 import logging
 
-logger = logging.getLogger(__name__)
-
 class DateFilterManager:
     """Manages date filtering for CBOSA searches with local post-processing"""
     
     def __init__(self):
         self.date_format = "%Y-%m-%d"
+        self.logger = logging.getLogger(__name__)
     
     def validate_date_string(self, date_str):
         """Validate and parse date string in YYYY-MM-DD format"""
@@ -47,18 +46,18 @@ class DateFilterManager:
             try:
                 result['date_from_parsed'] = self.validate_date_string(date_from_str)
                 result['cbosa_params']['odDaty'] = date_from_str
-                logger.info(f"Date from: {date_from_str} -> {result['date_from_parsed']}")
+                self.logger.info(f"Date from: {date_from_str} -> {result['date_from_parsed']}")
             except ValueError as e:
-                logger.error(f"Invalid start date: {e}")
+                self.logger.exception(f"Invalid start date: {e}")
                 raise
         
         if date_to_str:
             try:
                 result['date_to_parsed'] = self.validate_date_string(date_to_str)
                 result['cbosa_params']['doDaty'] = date_to_str  
-                logger.info(f"Date to: {date_to_str} -> {result['date_to_parsed']}")
+                self.logger.info(f"Date to: {date_to_str} -> {result['date_to_parsed']}")
             except ValueError as e:
-                logger.error(f"Invalid end date: {e}")
+                self.logger.exception(f"Invalid end date: {e}")
                 raise
         
         # Validate date range
@@ -91,7 +90,7 @@ class DateFilterManager:
         This compensates for CBOSA's loose date filtering
         """
         if not date_from_parsed and not date_to_parsed:
-            logger.info("No date filtering requested - returning all cases")
+            self.logger.info("No date filtering requested - returning all cases")
             return cases, {"total": len(cases), "filtered": 0, "kept": len(cases)}
         
         filtered_cases = []
@@ -105,7 +104,7 @@ class DateFilterManager:
             if case_year is None:
                 filtered_cases.append(case)
                 stats["kept"] += 1
-                logger.debug(f"Keeping case (no year extracted): {case_signature}")
+                self.logger.debug(f"Keeping case (no year extracted): {case_signature}")
                 continue
             
             # Check date range
@@ -115,22 +114,22 @@ class DateFilterManager:
                 # For start date, we only have year so check if case year >= start year
                 if case_year < date_from_parsed.year:
                     keep_case = False
-                    logger.debug(f"Filtering out case (year {case_year} < {date_from_parsed.year}): {case_signature}")
+                    self.logger.debug(f"Filtering out case (year {case_year} < {date_from_parsed.year}): {case_signature}")
             
             if date_to_parsed and keep_case:
                 # For end date, check if case year <= end year  
                 if case_year > date_to_parsed.year:
                     keep_case = False
-                    logger.debug(f"Filtering out case (year {case_year} > {date_to_parsed.year}): {case_signature}")
+                    self.logger.debug(f"Filtering out case (year {case_year} > {date_to_parsed.year}): {case_signature}")
             
             if keep_case:
                 filtered_cases.append(case)
                 stats["kept"] += 1
-                logger.debug(f"Keeping case (year {case_year}): {case_signature}")
+                self.logger.debug(f"Keeping case (year {case_year}): {case_signature}")
             else:
                 stats["filtered"] += 1
         
-        logger.info(f"Date filtering results: {stats['total']} total, {stats['kept']} kept, {stats['filtered']} filtered out")
+        self.logger.info(f"Date filtering results: {stats['total']} total, {stats['kept']} kept, {stats['filtered']} filtered out")
         
         return filtered_cases, stats
     
