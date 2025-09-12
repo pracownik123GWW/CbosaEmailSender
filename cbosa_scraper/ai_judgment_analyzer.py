@@ -3,6 +3,7 @@ import logging
 from typing import List, Dict, Optional
 from striprtf.striprtf import rtf_to_text
 from openai import OpenAI
+import regex
 
 # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
 # do not change this unless explicitly requested by the user
@@ -15,6 +16,7 @@ class JudgmentAnalyzer:
         
         self.client = OpenAI(api_key=self.openai_api_key)
         self.logger = logging.getLogger(__name__)
+        self.no_uzasadnienie_count = 0
         
         # Fixed prompt for newsletter analysis
         self.analysis_prompt = """Na podstawie poniższego orzeczenia sądowego przygotuj artykuł do newslettera prawniczego w następującym formacie:
@@ -107,6 +109,20 @@ Orzeczenie do analizy:
             Dictionary with analysis results
         """
         try:
+            has_uz = JudgmentAnalyzer._has_uzasadnienie(rtf_content)
+            if not has_uz:
+                self.no_uzasadnienie_count += 1
+                self.logger.info("Pominięto wywołanie API: brak uzasadnienia.")
+                return {
+                    "success": True,
+                    "analysis": "Brak uzasadnienia w orzeczeniu - nie wygenerowano podsumowania",
+                    "case_info": case_info or {},
+                    "timestamp": None,
+                    "tokens_used": 0,
+                    "error": None,
+                    "has_uzasadnienie": False,
+                }
+            
             # Extract plain text from RTF
             judgment_text = self.extract_text_from_rtf(rtf_content)
             
@@ -260,8 +276,17 @@ Orzeczenie do analizy:
             'successful_analyses': successful_analyses,
             'failed_analyses': failed_analyses,
             'success_rate': (successful_analyses / total_analyses * 100) if total_analyses > 0 else 0,
+            'no_uzasadnienie_count': self.no_uzasadnienie_count,
             'total_tokens_used': total_tokens,
             'average_tokens_per_analysis': int(avg_tokens),
             'estimated_cost_usd': round(estimated_cost_usd, 4),
             'estimated_cost_pln': round(estimated_cost_pln, 2)
         }
+
+    @staticmethod
+    def _has_uzasadnienie(rtf: str) -> bool:
+        """
+        Wykrywa sekwencję RTF: \b Uzasadnienie\b0 (toleruje spacje/nowe linie, bez rozróżniania wielkości liter).
+        """
+        pattern = regex.compile(r'\\b\s*Uzasadnienie\s*\\b0')
+        return bool(pattern.search(rtf))

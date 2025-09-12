@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <title>Biuletyn CBOSA: $config_name - $date_str</title>
+  <style>
+    .container { max-width: 640px; margin: 0 auto; padding: 24px;
+      font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      line-height: 1.55; color: #222; background: #fff; }
+    .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; background:#fff; }
+    h1 { font-size: 20px; margin: 0 0 8px 0; }
+    h2 { font-size: 16px; margin: 16px 0 8px 0; }
+    .muted { color:#6b7280; font-size: 13px; }
+    .footer { margin-top: 24px; font-size: 12px; color:#6b7280; }
+    @media (prefers-color-scheme: dark) {
+      .container { background:#0b0b0b; color:#e5e7eb; }
+      .card { background:#111; border-color:#222; }
+      .muted, .footer { color:#9ca3af; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;">
+  <div class="container">
+    <div class="muted" style="margin-bottom:8px;">$date_str</div>
+    <h1>Biuletyn CBOSA</h1>
+
+    <div class="card">
+      <p>$hello_line</p>
+
+      <p>W załącznikach znajdują się:</p>
+      <ul>
+        <li><strong>Biuletyn DOCX</strong> – raport AI z analizy orzeczeń (Word),</li>
+        <li><strong>Statystyki TXT</strong> – metryki generowania i kosztów,</li>
+        <li><strong>Archiwum ZIP</strong> – pobrane orzeczenia (RTF) z bieżącego wyszukania.</li>
+      </ul>
+
+      <h2>Podsumowanie wyszukania</h2>
+      <p>
+        Liczba orzeczeń w raporcie: <strong>$cases_count</strong>
+        <br/>
+        Liczba orzeczeń bez uzasadnienia: <strong>$cases_without_justification</strong>
+      </p>
+
+      <p class="muted">
+        Uwaga: treść biuletynu została wygenerowana automatycznie (AI) i ma charakter pomocniczy —
+        nie zastępuje profesjonalnej analizy prawnej.
+      </p>
+    </div>
+
+    <div class="footer">
+      <p>
+        Pozdrawiam,<br/>
+        <strong>$sender_name</strong><br/>
+        <a href="mailto:$contact_email" style="color:inherit">$contact_email</a>
+      </p>
+      <p class="muted">
+        Jeżeli uważasz, że nie powinieneś/powinnaś otrzymać tej wiadomości lub
+        zauważyłeś/zauważyłaś błędy, prosimy o pilny kontakt ze szczegółowym
+        opisem i zrzutami ekranu na adres
+        <a href="mailto:$support_email" style="color:inherit">$support_email</a>.
+    </p>
+    </div>
+  </div>
+</body>
+</html>

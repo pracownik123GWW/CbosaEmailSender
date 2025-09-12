@@ -8,17 +8,17 @@ import os
 import sys
 import logging
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
+from string import Template
 
 # Dodaj ścieżkę do modułów Python
 sys.path.append(os.path.join(os.path.dirname(__file__), 'python'))
 
-from database import DatabaseManager, SearchConfiguration, User
+from database import DatabaseManager, SearchConfiguration
 from brevo_service import BrevoEmailService, EmailRecipient
 from cbosa_scraper.cbosa_scraper import CBOSAScraper
 from cbosa_scraper.ai_judgment_analyzer import JudgmentAnalyzer
-from cbosa_scraper.newsletter_generator import NewsletterGenerator
-from file_helpers import build_judgments_zip
+from cbosa_scraper.attachments import EmailAttachmentBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class CBOSABot:
         self.email_service = email_service
         self.scraper = CBOSAScraper(delay_between_requests=0.5)
         self.analyzer = JudgmentAnalyzer()
-        self.newsletter_generator = NewsletterGenerator()
+        self.attachments_builder = EmailAttachmentBuilder(output_dir="./out")
         
         logger.info("🤖 CBOSA Bot zainicjalizowany")
     
@@ -125,19 +125,32 @@ class CBOSABot:
             results['cases_analyzed'] = len(analysis_result['analyses'])
             logger.info(f"✅ Przeanalizowano {results['cases_analyzed']} orzeczeń")
             
-            # Krok 3: Generowanie newslettera
-            logger.info("📄 Generowanie newslettera...")
-            newsletter_html = self.newsletter_generator.generate_newsletter(
+            logger.info("📎 Budowanie załączników (DOCX, TXT, ZIP)...")
+            attachments_triplets = self.attachments_builder.build_all(
                 analyses=analysis_result['analyses'],
                 search_params=config.search_params,
-                stats=analysis_result['stats']
+                stats=analysis_result['stats'],
+                successful_downloads=successful_downloads
             )
-            
-            #  Krok 3.5: Zbudowanie ZIP z orzeczeniami
-            logger.info("🗜️ Budowanie pliku ZIP z orzeczeniami...")
-            zip_bytes, zip_name = build_judgments_zip(successful_downloads)
+            # BrevoEmailService (jeśli oczekuje listy (filename, bytes)):
+            attachments = [(name, data) for (name, data, _mime) in attachments_triplets]
 
-            attachments = [(zip_name, zip_bytes)] if zip_bytes else None
+            templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+            html_tpl_path = os.path.join(templates_dir, "email_body.html")
+
+            now = datetime.now(timezone.utc)
+            context = {
+                "date_str": now.strftime("%d.%m.%Y"),
+                "config_name": config.name,
+                "cases_count": str(results['cases_analyzed']),
+                "cases_without_justification": str(analysis_result['stats'].get('cases_without_justification', 0)),
+                "hello_line": f"{config.name},",
+                "sender_name": "CBOSA Biuletyn",
+                "contact_email": "marketing@gww.pl",
+                "support_email": "marketing@gww.pl",
+            }
+
+            email_body = CBOSABot.render_file_template(html_tpl_path, context)
             
             # Krok 4: Wysyłka newsletterów
             logger.info("📧 Wysyłanie newsletterów do subskrybentów...")
@@ -166,7 +179,7 @@ class CBOSABot:
             # Wyślij newslettery
             email_results = self.email_service.send_bulk_newsletter(
                 recipients=recipients,
-                newsletter_html=newsletter_html,
+                email_body=email_body,
                 config_name=config.name,
                 attachments=attachments
             )
@@ -216,6 +229,10 @@ class CBOSABot:
             )
             
             raise
+        
+        finally:
+            # cleanup temporary files
+            self.attachments_builder.cleanup()
     
     def _analyze_cases_with_ai(self, cases_data: List[Dict]) -> Dict[str, Any]:
         """
@@ -276,100 +293,12 @@ class CBOSABot:
             error_message='; '.join(results['errors']) if results['errors'] else None,
             execution_details={'errors': results['errors']}
         )
-    
-    def create_default_configurations(self):
-        """Utwórz domyślne konfiguracje wyszukiwania"""
-        logger.info("📋 Tworzenie domyślnych konfiguracji wyszukiwania...")
-        
-        default_configs = [
-            {
-                'name': 'Podatek VAT - Najnowsze Orzeczenia',
-                'description': 'Najnowsze orzeczenia dotyczące podatku VAT',
-                'search_params': {
-                    'keywords': 'VAT podatek',
-                    'keywords_location': 'gdziekolwiek',
-                    'with_inflection': 'on',
-                    'court': 'dowolny',
-                    'judgment_type': 'Wyrok',
-                    'with_justification': 'on',
-                    'date_from': '2024-01-01'
-                },
-                'max_results': 30
-            },
-            {
-                'name': 'Prawo Budowlane',
-                'description': 'Orzeczenia związane z prawem budowlanym i pozwoleniami na budowę',
-                'search_params': {
-                    'keywords': 'pozwolenie budowa budowlane',
-                    'keywords_location': 'gdziekolwiek',
-                    'with_inflection': 'on',
-                    'court': 'dowolny',
-                    'judgment_type': 'Wyrok',
-                    'with_justification': 'on'
-                },
-                'max_results': 25
-            },
-            {
-                'name': 'Podatek Dochodowy',
-                'description': 'Orzeczenia dotyczące podatku dochodowego od osób fizycznych i prawnych',
-                'search_params': {
-                    'keywords': 'podatek dochodowy PIT CIT',
-                    'keywords_location': 'gdziekolwiek',
-                    'with_inflection': 'on',
-                    'court': 'dowolny',
-                    'judgment_type': 'Wyrok',
-                    'with_justification': 'on',
-                    'date_from': '2024-01-01'
-                },
-                'max_results': 35
-            }
-        ]
-        
-        for config_data in default_configs:
-            try:
-                # Sprawdź czy konfiguracja już istnieje
-                existing_configs = self.db_manager.get_all_active_search_configurations()
-                if any(c.name == config_data['name'] for c in existing_configs):
-                    logger.info(f"⚪ Konfiguracja '{config_data['name']}' już istnieje")
-                    continue
-                
-                # Utwórz nową konfigurację
-                config = self.db_manager.create_search_configuration(
-                    name=config_data['name'],
-                    description=config_data['description'],
-                    search_params=config_data['search_params'],
-                    max_results=config_data['max_results']
-                )
-                
-                logger.info(f"✅ Utworzono konfigurację: {config.name}")
-                
-            except Exception as e:
-                logger.error(f"❌ Błąd tworzenia konfiguracji '{config_data['name']}': {e}")
-    
-    def create_test_user(self, email: str, name: str) -> User:
-        """
-        Utwórz użytkownika testowego
-        
-        Args:
-            email: Email użytkownika
-            name: Nazwa użytkownika
-            
-        Returns:
-            Utworzony użytkownik
-        """
-        try:
-            # Sprawdź czy użytkownik już istnieje
-            existing_user = self.db_manager.get_user_by_email(email)
-            if existing_user:
-                logger.info(f"⚪ Użytkownik {email} już istnieje")
-                return existing_user
-            
-            # Utwórz nowego użytkownika
-            user = self.db_manager.create_user(email=email, name=name)
-            logger.info(f"✅ Utworzono użytkownika testowego: {email}")
-            
-            return user
-            
-        except Exception as e:
-            logger.error(f"❌ Błąd tworzenia użytkownika testowego: {e}")
-            raise
+
+    @staticmethod
+    def render_file_template(path: str, context: Dict[str, str]) -> str:
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Template not found: {path}")
+        with open(path, "r", encoding="utf-8") as f:
+            tpl = Template(f.read())
+        # safe_substitute = brak Exception gdy jakiś placeholder nie wystąpi w kontekście
+        return tpl.safe_substitute(context)
