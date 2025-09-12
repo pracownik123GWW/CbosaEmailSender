@@ -53,7 +53,7 @@ class EmailAttachmentBuilder:
         # DOCX
         attachments.append(self.build_docx(analyses, search_params, stats))
         # TXT
-        attachments.append(self.build_stats_txt(stats))
+        # attachments.append(self.build_stats_txt(stats))
         # ZIP (opcjonalnie)
         zip_att = self.build_zip(successful_downloads)
         if zip_att:
