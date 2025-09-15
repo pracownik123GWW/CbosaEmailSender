@@ -15,7 +15,7 @@ import traceback
 # Dodaj ścieżkę do modułów Python
 sys.path.append(os.path.join(os.path.dirname(__file__), 'python'))
 
-from database import DatabaseManager, SearchConfiguration
+from database import DatabaseManager
 from brevo_service import BrevoEmailService, EmailRecipient
 from cbosa_scraper.cbosa_scraper import CBOSAScraper
 from cbosa_scraper.ai_judgment_analyzer import JudgmentAnalyzer
@@ -40,17 +40,14 @@ class CBOSABot:
         
         try:
             # Pobierz wszystkie aktywne konfiguracje wyszukiwania
-            search_configs = self.db_manager.get_all_active_search_configurations()
-            
-            if not search_configs:
-                self.logger.warning("⚠️ Nie znaleziono aktywnych konfiguracji wyszukiwania")
+            subscriptions = self.db_manager.get_all_active_subscriptions()
+            if not subscriptions:
+                self.logger.warning("⚠️ Nie znaleziono aktywnych subskrypcji")
                 return
             
-            self.logger.info(f"📋 Znaleziono {len(search_configs)} aktywnych konfiguracji wyszukiwania")
-            
-            # Wykonaj każdą konfigurację wyszukiwania
-            for config in search_configs:
-                self.execute_search_configuration(config)
+            self.logger.info(f"📋 Znaleziono {len(subscriptions)} aktywnych subskrypcji")
+            for subscription in subscriptions:
+                self.execute_subscription(subscription)
             
             self.logger.info("✅ Zaplanowane uruchomienie zakończone pomyślnie")
             
@@ -58,24 +55,228 @@ class CBOSABot:
             self.logger.exception("❌ Błąd podczas zaplanowanego uruchomienia")
             raise
     
-    def execute_search_configuration(self, config: SearchConfiguration) -> Dict[str, Any]:
-        """
-        Wykonaj pojedynczą konfigurację wyszukiwania
+    # def execute_search_configuration(self, config: SearchConfiguration) -> Dict[str, Any]:
+    #     """
+    #     Wykonaj pojedynczą konfigurację wyszukiwania
         
-        Args:
-            config: Konfiguracja wyszukiwania
+    #     Args:
+    #         config: Konfiguracja wyszukiwania
             
-        Returns:
-            Wyniki wykonania
-        """
-        self.logger.info(f"🔍 Wykonywanie konfiguracji wyszukiwania: {config.name}")
+    #     Returns:
+    #         Wyniki wykonania
+    #     """
+    #     self.logger.info(f"🔍 Wykonywanie konfiguracji wyszukiwania: {config.short_name}")
         
-        # Utwórz log wykonania
+    #     # Utwórz log wykonania
+    #     execution_log = self.db_manager.create_execution_log(
+    #         search_config_id=config.id,
+    #         status='started'
+    #     )
+        
+    #     results = {
+    #         'success': False,
+    #         'execution_log_id': execution_log.id,
+    #         'cases_found': 0,
+    #         'cases_analyzed': 0,
+    #         'emails_sent': 0,
+    #         'errors': []
+    #     }
+        
+    #     try:
+    #         # Krok 1: Scrapowanie CBOSA
+    #         self.logger.info("📥 Scrapowanie CBOSA w poszukiwaniu orzeczeń...")
+    #         case_data = self.scraper.search_cases(
+    #             config.config,
+    #             date_range=config.date_range,
+    #             max_results=config.max_results
+    #         )
+            
+    #         if not case_data:
+    #             self.logger.info("📭 Nie znaleziono orzeczeń dla tej konfiguracji wyszukiwania")
+    #             self._update_execution_log_completed(execution_log.id, results)
+    #             return results
+            
+    #         results['cases_found'] = len(case_data)
+    #         self.logger.info(f"📊 Znaleziono {results['cases_found']} orzeczeń")
+            
+    #         # Pobierz treści RTF
+    #         self.logger.info("📄 Pobieranie treści orzeczeń...")
+    #         download_results = self.scraper.download_multiple_cases(case_data)
+    #         successful_downloads = [r for r in download_results if r['success']]
+            
+    #         if not successful_downloads:
+    #             self.logger.warning("⚠️ Nie udało się pobrać żadnych treści orzeczeń")
+    #             self._update_execution_log_completed(execution_log.id, results)
+    #             return results
+            
+    #         self.logger.info(f"✅ Pobrano {len(successful_downloads)} treści orzeczeń")
+            
+    #         # Krok 2: Analiza AI
+    #         self.logger.info("🧠 Analiza orzeczeń za pomocą AI...")
+    #         analysis_result = self._analyze_cases_with_ai(successful_downloads)
+            
+    #         if not analysis_result['analyses']:
+    #             self.logger.warning("⚠️ Nie wygenerowano żadnych udanych analiz")
+    #             self._update_execution_log_completed(execution_log.id, results)
+    #             return results
+            
+    #         results['cases_analyzed'] = len(analysis_result['analyses'])
+    #         self.logger.info(f"✅ Przeanalizowano {results['cases_analyzed']} orzeczeń")
+            
+    #         self.logger.info("📎 Budowanie załączników (DOCX, TXT, ZIP)...")
+    #         attachments_triplets = self.attachments_builder.build_all(
+    #             analyses=analysis_result['analyses'],
+    #             search_params=config.config,
+    #             stats=analysis_result['stats'],
+    #             successful_downloads=successful_downloads
+    #         )
+    #         # BrevoEmailService (jeśli oczekuje listy (filename, bytes)):
+    #         attachments = [(name, data) for (name, data, _mime) in attachments_triplets]
+
+    #         templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+    #         html_tpl_path = os.path.join(templates_dir, "email_body.html")
+            
+    #         # Krok 4: Wysyłka newsletterów
+    #         self.logger.info("📧 Wysyłanie newsletterów do subskrybentów...")
+    #         subscribers = self.db_manager.get_subscriptions_for_config(config.id)
+            
+    #         if not subscribers:
+    #             self.logger.info("📪 Brak subskrybentów dla tej konfiguracji wyszukiwania")
+    #             self._update_execution_log_completed(execution_log.id, results)
+    #             return results
+            
+    #         # Pobierz szczegóły użytkowników-subskrybentów
+    #         recipients = []
+    #         for subscription in subscribers:
+    #             user = self.db_manager.get_user(subscription.user_id)
+    #             if user and user.is_active:
+    #                 recipients.append(EmailRecipient(
+    #                     email=user.email,
+    #                     name=f"{user.first_name} {user.last_name}"
+    #                 ))
+            
+    #         if not recipients:
+    #             self.logger.info("📪 Brak aktywnych subskrybentów dla tej konfiguracji")
+    #             self._update_execution_log_completed(execution_log.id, results)
+    #             return results
+            
+    #         # Wyślij newslettery
+    #         now = datetime.now(timezone.utc)
+    #         templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+    #         html_tpl_path = os.path.join(templates_dir, "email_body.html")
+
+    #         for subscription in subscribers:
+    #             user = self.db_manager.get_user(subscription.user_id)
+    #             if not user or not user.is_active:
+    #                 continue
+
+    #             full_name = f"{user.first_name} {user.last_name}".strip()
+    #             hello_line = full_name if full_name else "Szanowni Państwo"
+
+    #             # 👇 personalizowany kontekst dla każdego użytkownika
+    #             context = {
+    #                 "date_str": now.strftime("%d.%m.%Y"),
+    #                 "config_name": config.short_name,
+    #                 "cases_count": str(results['cases_analyzed']),
+    #                 "cases_without_justification": str(analysis_result['stats'].get('cases_without_justification', 0)),
+    #                 "hello_line": f"{hello_line},",
+    #                 "sender_name": "CBOSA Biuletyn",
+    #                 "contact_email": "marketing@gww.pl",
+    #                 "support_email": "marketing@gww.pl",
+    #             }
+
+    #             email_body = CBOSABot.render_file_template(html_tpl_path, context)
+
+    #             # wysyłka do pojedynczego użytkownika
+    #             recipient = EmailRecipient(email=user.email, name=full_name or user.email)
+    #             email_result = self.email_service.send_newsletter(  # 👈 zamiast send_bulk_newsletter
+    #                 recipient=recipient,
+    #                 email_body=email_body,
+    #                 config_name=config.short_name,
+    #                 attachments=attachments
+    #             )
+
+    #             # logowanie
+    #             self.db_manager.create_email_log(
+    #                 execution_log_id=execution_log.id,
+    #                 user_id=user.id,
+    #                 email=recipient.email,
+    #                 status='sent' if email_result.success else 'failed',
+    #                 brevo_message_id=email_result.message_id,
+    #                 error_message=email_result.error
+    #             )
+
+    #             if email_result.success:
+    #                 results['emails_sent'] += 1
+    #             else:
+    #                 results['errors'].append(f"Email do {recipient.email}: {email_result.error}")
+            
+    #         results['success'] = True
+    #         self.logger.info(f"📬 Wysłano {results['emails_sent']} newsletterów pomyślnie")
+            
+    #         # Zaktualizuj log wykonania z sukcesem
+    #         self._update_execution_log_completed(execution_log.id, results)
+            
+    #         return results
+            
+    #     except Exception as e:
+    #         self.logger.exception("❌ Błąd podczas wykonywania konfiguracji")
+    #         results["errors"].append({
+    #             "message": str(e),
+    #             "traceback": traceback.format_exc()
+    #         })
+            
+    #         # Zaktualizuj log wykonania z błędem
+    #         self.db_manager.update_execution_log(
+    #             log_id=execution_log.id,
+    #             status='failed',
+    #             completed_at=datetime.now(timezone.utc),
+    #             cases_found=results['cases_found'],
+    #             cases_analyzed=results['cases_analyzed'],
+    #             emails_sent=results['emails_sent'],
+    #             error_message=str(e),
+    #             execution_details={'errors': results['errors']}
+    #         )
+            
+    #         raise
+        
+    #     finally:
+    #         # cleanup temporary files
+    #         self.attachments_builder.cleanup()
+    
+    def execute_subscription(self, subscription) -> Dict[str, Any]:
+        """
+        Wykonaj pojedynczą subskrypcję (user ↔ search_config):
+        - scrapuje według konfiguracji subskrypcji,
+        - analizuje,
+        - buduje załączniki,
+        - wysyła JEDEN spersonalizowany email do użytkownika.
+        """
+        user = subscription.user
+        config = subscription.search_config
+
+        # Walidacje subskrypcji / użytkownika / konfiguracji
+        if not subscription.is_active or not user or not user.is_active or not config or not config.is_active:
+            self.logger.info("⏭️ Pominięto subskrypcję (nieaktywna / brak usera lub konfiguracji)")
+            return {
+                'success': False,
+                'execution_log_id': None,
+                'cases_found': 0,
+                'cases_analyzed': 0,
+                'emails_sent': 0,
+                'errors': ["Inactive subscription/user/config or missing data"]
+            }
+
+        self.logger.info(
+            f"🔔 Subskrypcja: user={user.email} ⇄ config={config.short_name}"
+        )
+
+        # Utwórz log wykonania per konfiguracja (jeden log na subskrypcję)
         execution_log = self.db_manager.create_execution_log(
             search_config_id=config.id,
             status='started'
         )
-        
+
         results = {
             'success': False,
             'execution_log_id': execution_log.id,
@@ -84,143 +285,131 @@ class CBOSABot:
             'emails_sent': 0,
             'errors': []
         }
-        
+
         try:
-            # Krok 1: Scrapowanie CBOSA
-            self.logger.info("📥 Scrapowanie CBOSA w poszukiwaniu orzeczeń...")
+            # 1) Scrapowanie CBOSA
+            self.logger.info("📥 Scrapowanie CBOSA…")
             case_data = self.scraper.search_cases(
-                config.search_params,
+                config.config,
                 date_range=config.date_range,
                 max_results=config.max_results
             )
-            
+
             if not case_data:
-                self.logger.info("📭 Nie znaleziono orzeczeń dla tej konfiguracji wyszukiwania")
+                self.logger.info("📭 Brak orzeczeń dla tej subskrypcji")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
-            
+
             results['cases_found'] = len(case_data)
             self.logger.info(f"📊 Znaleziono {results['cases_found']} orzeczeń")
-            
-            # Pobierz treści RTF
-            self.logger.info("📄 Pobieranie treści orzeczeń...")
+
+            # 2) Pobranie treści
+            self.logger.info("📄 Pobieranie treści orzeczeń…")
             download_results = self.scraper.download_multiple_cases(case_data)
             successful_downloads = [r for r in download_results if r['success']]
-            
+
             if not successful_downloads:
                 self.logger.warning("⚠️ Nie udało się pobrać żadnych treści orzeczeń")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
-            
+
             self.logger.info(f"✅ Pobrano {len(successful_downloads)} treści orzeczeń")
-            
-            # Krok 2: Analiza AI
-            self.logger.info("🧠 Analiza orzeczeń za pomocą AI...")
+
+            # 3) Analiza AI
+            self.logger.info("🧠 Analiza orzeczeń…")
             analysis_result = self._analyze_cases_with_ai(successful_downloads)
-            
+
             if not analysis_result['analyses']:
-                self.logger.warning("⚠️ Nie wygenerowano żadnych udanych analiz")
+                self.logger.warning("⚠️ Brak udanych analiz")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
-            
+
             results['cases_analyzed'] = len(analysis_result['analyses'])
             self.logger.info(f"✅ Przeanalizowano {results['cases_analyzed']} orzeczeń")
-            
-            self.logger.info("📎 Budowanie załączników (DOCX, TXT, ZIP)...")
+
+            # 4) Załączniki
+            self.logger.info("📎 Budowanie załączników (DOCX, ZIP)…")
             attachments_triplets = self.attachments_builder.build_all(
                 analyses=analysis_result['analyses'],
-                search_params=config.search_params,
+                search_params=config.config,
                 stats=analysis_result['stats'],
                 successful_downloads=successful_downloads
             )
             # BrevoEmailService (jeśli oczekuje listy (filename, bytes)):
             attachments = [(name, data) for (name, data, _mime) in attachments_triplets]
 
+            # 5) Templating maila (spersonalizowany 'hello_line')
             templates_dir = os.path.join(os.path.dirname(__file__), "templates")
             html_tpl_path = os.path.join(templates_dir, "email_body.html")
 
             now = datetime.now(timezone.utc)
+            full_name = f"{(user.first_name or '').strip()} {(user.last_name or '').strip()}".strip()
+            hello_line = full_name if full_name else "Szanowni Państwo"
             context = {
                 "date_str": now.strftime("%d.%m.%Y"),
-                "config_name": config.name,
+                "config_name": config.short_name,
                 "cases_count": str(results['cases_analyzed']),
                 "cases_without_justification": str(analysis_result['stats'].get('cases_without_justification', 0)),
-                "hello_line": f"{config.name},",
+                "hello_line": f"{hello_line},",
                 "sender_name": "CBOSA Biuletyn",
                 "contact_email": "marketing@gww.pl",
                 "support_email": "marketing@gww.pl",
             }
-
             email_body = CBOSABot.render_file_template(html_tpl_path, context)
-            
-            # Krok 4: Wysyłka newsletterów
-            self.logger.info("📧 Wysyłanie newsletterów do subskrybentów...")
-            subscribers = self.db_manager.get_subscriptions_for_config(config.id)
-            
-            if not subscribers:
-                self.logger.info("📪 Brak subskrybentów dla tej konfiguracji wyszukiwania")
-                self._update_execution_log_completed(execution_log.id, results)
-                return results
-            
-            # Pobierz szczegóły użytkowników-subskrybentów
-            recipients = []
-            for subscription in subscribers:
-                user = self.db_manager.get_user(subscription.user_id)
-                if user and user.is_active:
-                    recipients.append(EmailRecipient(
-                        email=user.email,
-                        name=user.name
-                    ))
-            
-            if not recipients:
-                self.logger.info("📪 Brak aktywnych subskrybentów dla tej konfiguracji")
-                self._update_execution_log_completed(execution_log.id, results)
-                return results
-            
-            # Wyślij newslettery
-            email_results = self.email_service.send_bulk_newsletter(
-                recipients=recipients,
-                email_body=email_body,
-                config_name=config.name,
-                attachments=attachments
+
+            # 6) Wysyłka JEDNEGO maila do usera z tej subskrypcji
+            recipient = EmailRecipient(email=user.email, name=full_name or user.email)
+
+            # Preferowane: metoda send_newsletter (jeśli masz ją w BrevoEmailService)
+            if hasattr(self.email_service, "send_newsletter"):
+                email_result = self.email_service.send_newsletter(
+                    recipient=recipient,
+                    email_body=email_body,
+                    config_name=config.short_name,
+                    attachments=attachments
+                )
+            else:
+                # Fallback: zbuduj EmailContent i wyślij przez send_email
+                from brevo_service import EmailContent
+                subject = f"Biuletyn CBOSA: {config.short_name} - {now.strftime('%d.%m.%Y')}"
+                email_result = self.email_service.send_email(
+                    recipients=[recipient],
+                    content=EmailContent(
+                        subject=subject,
+                        email_body=email_body,
+                        text_content="Biuletyn dostępny jest w wersji HTML."
+                    ),
+                    attachments=attachments
+                )[0]
+
+            # 7) Logowanie maila
+            self.db_manager.create_email_log(
+                execution_log_id=execution_log.id,
+                user_id=user.id,
+                email=recipient.email,
+                status='sent' if email_result.success else 'failed',
+                brevo_message_id=getattr(email_result, "message_id", None),
+                error_message=getattr(email_result, "error", None)
             )
-            
-            # Zapisz logi emaili
-            for i, email_result in enumerate(email_results):
-                recipient = recipients[i]
-                user = next((u for u in [self.db_manager.get_user_by_email(recipient.email)] if u), None)
-                
-                if user:
-                    self.db_manager.create_email_log(
-                        execution_log_id=execution_log.id,
-                        user_id=user.id,
-                        email=recipient.email,
-                        status='sent' if email_result.success else 'failed',
-                        brevo_message_id=email_result.message_id,
-                        error_message=email_result.error
-                    )
-                    
-                    if email_result.success:
-                        results['emails_sent'] += 1
-                    else:
-                        results['errors'].append(f"Email do {recipient.email}: {email_result.error}")
-            
-            results['success'] = True
-            self.logger.info(f"📬 Wysłano {results['emails_sent']} newsletterów pomyślnie")
-            
-            # Zaktualizuj log wykonania z sukcesem
+
+            if email_result.success:
+                results['emails_sent'] = 1
+                results['success'] = True
+                self.logger.info(f"📬 Wysłano newsletter do: {recipient.email}")
+            else:
+                results['errors'].append(f"Email do {recipient.email}: {getattr(email_result, 'error', 'unknown error')}")
+
+            # Zakończ log wykonania
             self._update_execution_log_completed(execution_log.id, results)
-            
             return results
-            
+
         except Exception as e:
-            self.logger.exception("❌ Błąd podczas wykonywania konfiguracji")
+            self.logger.exception("❌ Błąd podczas wykonywania subskrypcji")
             results["errors"].append({
                 "message": str(e),
                 "traceback": traceback.format_exc()
             })
-            
-            # Zaktualizuj log wykonania z błędem
+            # Aktualizacja logu z błędem
             self.db_manager.update_execution_log(
                 log_id=execution_log.id,
                 status='failed',
@@ -231,13 +420,11 @@ class CBOSABot:
                 error_message=str(e),
                 execution_details={'errors': results['errors']}
             )
-            
             raise
-        
         finally:
-            # cleanup temporary files
+            # sprzątanie plików tymczasowych
             self.attachments_builder.cleanup()
-    
+
     def _analyze_cases_with_ai(self, cases_data: List[Dict]) -> Dict[str, Any]:
         """
         Analizuj orzeczenia za pomocą AI
