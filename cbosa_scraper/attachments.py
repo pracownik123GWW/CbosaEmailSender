@@ -43,7 +43,6 @@ class EmailAttachmentBuilder:
 
     def build_zip(self, successful_downloads: List[Dict]) -> Optional[Attachment]:
         zip_bytes, zip_name = build_judgments_zip(successful_downloads)
-        self.track_file(zip_name)
         if not zip_bytes:
             return None
         return (zip_name, zip_bytes, "application/zip")

@@ -9,8 +9,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from sqlalchemy import BigInteger, create_engine, Column, String, Integer, DateTime, Boolean, JSON, Text, ForeignKey, Enum as SqlEnum
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, relationship
+from sqlalchemy.orm import sessionmaker, Session, relationship, declarative_base, joinedload
 
 from models import DateRangeEnum
 
@@ -177,10 +176,17 @@ class DatabaseManager:
         with self.get_session() as session:
             return session.query(SearchConfiguration).filter(SearchConfiguration.id == config_id).first()
     
-    def get_all_active_search_configurations(self) -> List[SearchConfiguration]:
-        """Pobierz wszystkie aktywne konfiguracje wyszukiwania"""
+    def get_all_active_subscriptions(self):
         with self.get_session() as session:
-            return session.query(SearchConfiguration).filter(SearchConfiguration.is_active.is_(True)).all()
+            return (
+                session.query(UserSubscription)
+                .options(
+                    joinedload(UserSubscription.user),
+                    joinedload(UserSubscription.search_config)
+                )
+                .filter(UserSubscription.is_active)
+                .all()
+            )
     
     def create_search_configuration(
     self,
