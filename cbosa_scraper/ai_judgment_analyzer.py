@@ -142,8 +142,7 @@ Orzeczenie do analizy:
                         "content": full_prompt
                     }
                 ],
-                max_tokens=2000,
-                temperature=0.3  # Lower temperature for more consistent legal analysis
+                max_completion_tokens=2000,
             )
             
             analysis_text = response.choices[0].message.content
