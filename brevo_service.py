@@ -48,88 +48,7 @@ class BrevoEmailService:
         }
         self.logger = logging.getLogger(__name__)
         self.logger.info("✅ Serwis email Brevo zainicjalizowany")
-    
-    def _send_single_email(self, recipient: EmailRecipient, content: EmailContent,
-                          sender_email: str, sender_name: str) -> EmailSendResult:
-        """
-        Wyślij pojedynczy email
         
-        Args:
-            recipient: Odbiorca
-            content: Zawartość emaila
-            sender_email: Email nadawcy
-            sender_name: Nazwa nadawcy
-            
-        Returns:
-            Wynik wysyłania
-        """
-        try:
-            payload = {
-                'sender': {
-                    'email': sender_email,
-                    'name': sender_name
-                },
-                'to': [
-                    {
-                        'email': recipient.email,
-                        'name': recipient.name
-                    }
-                ],
-                'subject': content.subject,
-                'htmlContent': content.email_body
-            }
-            
-            if content.text_content:
-                payload['textContent'] = content.text_content
-            
-            response = requests.post(
-                f'{self.base_url}/smtp/email',
-                json=payload,
-                headers=self.headers,
-                timeout=30
-            )
-            
-            if response.status_code == 201:
-                # Sukces
-                response_data = response.json()
-                message_id = response_data.get('messageId')
-                
-                self.logger.debug(f"✅ Email wysłany do {recipient.email}, messageId: {message_id}")
-                return EmailSendResult(
-                    success=True,
-                    message_id=message_id
-                )
-            else:
-                # Błąd
-                error_msg = f"Błąd HTTP {response.status_code}: {response.text}"
-                self.logger.exception(f"❌ Błąd wysyłania do {recipient.email}: {error_msg}")
-                return EmailSendResult(
-                    success=False,
-                    error=error_msg
-                )
-                
-        except requests.exceptions.Timeout:
-            error_msg = "Timeout podczas wysyłania emaila"
-            self.logger.exception(f"❌ {error_msg} do {recipient.email}")
-            return EmailSendResult(
-                success=False,
-                error=error_msg
-            )
-        except requests.exceptions.RequestException as e:
-            error_msg = f"Błąd połączenia: {str(e)}"
-            self.logger.exception(f"❌ {error_msg} do {recipient.email}")
-            return EmailSendResult(
-                success=False,
-                error=error_msg
-            )
-        except Exception as e:
-            error_msg = f"Nieoczekiwany błąd: {str(e)}"
-            self.logger.exception(f"❌ {error_msg} do {recipient.email}")
-            return EmailSendResult(
-                success=False,
-                error=error_msg
-            )
-    
     def validate_email(self, email: str) -> bool:
         """
         Waliduj adres email
@@ -319,3 +238,32 @@ class BrevoEmailService:
         except Exception as e:
             self.logger.exception(f"❌ Błąd testowania połączenia z Brevo: {e}")
             return False
+    
+    def send_newsletter(
+        self,
+        recipient: EmailRecipient,
+        email_body: str,
+        config_name: str,
+        attachments: Optional[List[Union[str, Tuple[str, bytes], Dict[str, str]]]] = None,
+    ) -> EmailSendResult:
+        """
+        Wyślij newsletter do jednego odbiorcy (personalizowanego).
+        """
+        from datetime import datetime
+        current_date = datetime.now().strftime('%d.%m.%Y')
+        subject = f"Biuletyn CBOSA: {config_name} - {current_date}"
+
+        content = EmailContent(
+            subject=subject,
+            email_body=email_body,
+            text_content="Biuletyn dostępny jest w wersji HTML. Proszę włączyć wyświetlanie HTML w kliencie email."
+        )
+
+        self.logger.info(f"📤 Wysyłanie newslettera '{config_name}' do {recipient.email}")
+        return self._send_single_email(
+            recipient=recipient,
+            content=content,
+            sender_email="newsletter.automatic.bot@gmail.com",
+            sender_name="CBOSA Bot",
+            attachments=self._normalize_attachments(attachments) if attachments else None
+        )
