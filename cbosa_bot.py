@@ -90,7 +90,7 @@ class CBOSABot:
             self.logger.info("📥 Scrapowanie CBOSA w poszukiwaniu orzeczeń...")
             case_data = self.scraper.search_cases(
                 config.search_params,
-                data_range=config.date_range,
+                date_range=config.date_range,
                 max_results=config.max_results
             )
             
@@ -224,7 +224,7 @@ class CBOSABot:
             self.db_manager.update_execution_log(
                 log_id=execution_log.id,
                 status='failed',
-                completed_at=datetime.now(datetime.timezone.utc),
+                completed_at=datetime.now(timezone.utc),
                 cases_found=results['cases_found'],
                 cases_analyzed=results['cases_analyzed'],
                 emails_sent=results['emails_sent'],
