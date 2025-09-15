@@ -7,6 +7,7 @@ from cbosa_scraper.date_filter_manager import DateFilterManager
 import json
 from http.client import RemoteDisconnected
 import random
+from models import DateRangeEnum
 
 
 class CBOSAScraper:
@@ -47,7 +48,7 @@ class CBOSAScraper:
                 time.sleep(base_sleep + jitter + extra)
         raise last_err
     
-    def search_cases(self, search_params, max_results=100):
+    def search_cases(self, search_params, date_range: DateRangeEnum, max_results=100):
         """
         Search for cases using the provided parameters
         Returns list of case URLs
@@ -57,6 +58,15 @@ class CBOSAScraper:
                 "Starting search with params:\n%s",
                 json.dumps(search_params, indent=2, ensure_ascii=False))
 
+            if date_range:
+                date_from, date_to = date_range.compute_range()
+                search_params['date_from'] = date_from.isoformat()
+                search_params['date_to'] = date_to.isoformat()
+                self.logger.info(
+                    f"Applied date_range={date_range.name} "
+                    f"({date_range.label}) => {search_params['date_from']} .. {search_params['date_to']}"
+                )
+            
             # Extract and validate date parameters
             date_from_str = search_params.get('date_from', '')
             date_to_str = search_params.get('date_to', '')

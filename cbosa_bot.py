@@ -54,7 +54,7 @@ class CBOSABot:
             
             self.logger.info("✅ Zaplanowane uruchomienie zakończone pomyślnie")
             
-        except Exception as e:
+        except Exception:
             self.logger.exception("❌ Błąd podczas zaplanowanego uruchomienia")
             raise
     
@@ -90,6 +90,7 @@ class CBOSABot:
             self.logger.info("📥 Scrapowanie CBOSA w poszukiwaniu orzeczeń...")
             case_data = self.scraper.search_cases(
                 config.search_params,
+                data_range=config.date_range,
                 max_results=config.max_results
             )
             
@@ -280,7 +281,7 @@ class CBOSABot:
                 'all_results': analysis_results
             }
             
-        except Exception as e:
+        except Exception:
             self.logger.exception("❌ Błąd w analizie AI")
             raise
     
