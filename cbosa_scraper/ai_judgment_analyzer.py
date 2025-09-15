@@ -131,7 +131,7 @@ Orzeczenie do analizy:
             
             # Call OpenAI API
             response = self.client.chat.completions.create(
-                model="gpt-5-nano",
+                model="gpt-4o",
                 messages=[
                     {
                         "role": "system",
@@ -142,7 +142,8 @@ Orzeczenie do analizy:
                         "content": full_prompt
                     }
                 ],
-                max_completion_tokens=2000,
+                max_tokens=2000,
+                temperature=0.3,
             )
             
             analysis_text = response.choices[0].message.content
