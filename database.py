@@ -6,7 +6,7 @@ Używa SQLAlchemy do komunikacji z PostgreSQL
 
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from sqlalchemy import BigInteger, create_engine, Column, String, Integer, DateTime, Boolean, JSON, Text, ForeignKey, Enum as SqlEnum
 from sqlalchemy.orm import declarative_base
@@ -22,29 +22,31 @@ class User(Base):
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     email = Column(String(255), unique=True, nullable=False)
-    name = Column(String(255), nullable=False)
+    first_name = Column(String(255))
+    last_name = Column(String(255))
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
     
     # Relacje
     subscriptions = relationship("UserSubscription", back_populates="user")
     email_logs = relationship("EmailLog", back_populates="user")
 
 class SearchConfiguration(Base):
-    """Model konfiguracji wyszukiwania orzeczeń"""
     __tablename__ = 'search_configurations'
-    
+
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    name = Column(String(255), nullable=False)
+    short_name = Column(String(255), unique=True, nullable=False)
     description = Column(Text)
-    search_params = Column(JSON, nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False)
     max_results = Column(Integer, default=50, nullable=False)
-    date_range = Column(SqlEnum(DateRangeEnum, name="date_range_enum"), nullable=False, default=DateRangeEnum.YESTERDAY,)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    
+    date_range = Column(SqlEnum(DateRangeEnum, name="date_range_enum"), 
+                        nullable=False, 
+                        default=DateRangeEnum.YESTERDAY)
+    config = Column(JSON, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
+
     # Relacje
     subscriptions = relationship("UserSubscription", back_populates="search_config")
     execution_logs = relationship("ExecutionLog", back_populates="search_config")
@@ -65,7 +67,7 @@ class UserSubscription(Base):
     user_id = Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     search_config_id = Column(BigInteger, ForeignKey('search_configurations.id', ondelete='CASCADE'), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
     
     # Relacje
     user = relationship("User", back_populates="subscriptions")
@@ -78,7 +80,7 @@ class ExecutionLog(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     search_config_id = Column(BigInteger, ForeignKey('search_configurations.id', ondelete='CASCADE'), nullable=False)
     status = Column(String(50), nullable=False)
-    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    started_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
     completed_at = Column(DateTime)
     cases_found = Column(Integer)
     cases_analyzed = Column(Integer)
@@ -100,7 +102,7 @@ class EmailLog(Base):
     email = Column(String(255), nullable=False)
     status = Column(String(50), nullable=False)  # 'sent', 'failed', 'bounced'
     brevo_message_id = Column(String(255))
-    sent_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    sent_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
     error_message = Column(Text)
     
     # Relacje
@@ -156,10 +158,9 @@ class DatabaseManager:
         with self.get_session() as session:
             return session.query(User).filter(User.email == email).first()
     
-    def create_user(self, email: str, name: str) -> User:
-        """Utwórz nowego użytkownika"""
+    def create_user(self, email: str, first_name: str, last_name: str) -> User:
         with self.get_session() as session:
-            user = User(email=email, name=name)
+            user = User(email=email, first_name=first_name, last_name=last_name)
             session.add(user)
             session.commit()
             session.refresh(user)
@@ -181,19 +182,26 @@ class DatabaseManager:
         with self.get_session() as session:
             return session.query(SearchConfiguration).filter(SearchConfiguration.is_active.is_(True)).all()
     
-    def create_search_configuration(self, name: str, description: str, search_params: Dict[str, Any], max_results: int = 50) -> SearchConfiguration:
-        """Utwórz nową konfigurację wyszukiwania"""
+    def create_search_configuration(
+    self,
+    short_name: str,
+    description: str,
+    config: Dict[str, Any],
+    max_results: int = 50,
+    date_range: DateRangeEnum = DateRangeEnum.YESTERDAY
+    ) -> SearchConfiguration:
         with self.get_session() as session:
-            config = SearchConfiguration(
-                name=name,
+            config_obj = SearchConfiguration(
+                short_name=short_name,
                 description=description,
-                search_params=search_params,
-                max_results=max_results
+                config=config,
+                max_results=max_results,
+                date_range=date_range
             )
-            session.add(config)
+            session.add(config_obj)
             session.commit()
-            session.refresh(config)
-            return config
+            session.refresh(config_obj)
+            return config_obj
     
     # Metody dla subskrypcji
     def get_user_subscriptions(self, user_id: int) -> List[UserSubscription]:
