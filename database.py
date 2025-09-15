@@ -8,9 +8,11 @@ import os
 import logging
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from sqlalchemy import BigInteger, create_engine, Column, String, Integer, DateTime, Boolean, JSON, Text, ForeignKey
+from sqlalchemy import BigInteger, create_engine, Column, String, Integer, DateTime, Boolean, JSON, Text, ForeignKey, Enum as SqlEnum
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
+
+from models import DateRangeEnum
 
 Base = declarative_base()
 
@@ -39,12 +41,21 @@ class SearchConfiguration(Base):
     search_params = Column(JSON, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     max_results = Column(Integer, default=50, nullable=False)
+    date_range = Column(SqlEnum(DateRangeEnum, name="date_range_enum"), nullable=False, default=DateRangeEnum.YESTERDAY,)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     # Relacje
     subscriptions = relationship("UserSubscription", back_populates="search_config")
     execution_logs = relationship("ExecutionLog", back_populates="search_config")
+    
+    @property
+    def effective_from(self):
+        return self.date_range.compute_range()[0]
+
+    @property
+    def effective_to(self):
+        return self.date_range.compute_range()[1]
 
 class UserSubscription(Base):
     """Model subskrypcji użytkownika do określonej konfiguracji wyszukiwania"""
