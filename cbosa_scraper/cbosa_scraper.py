@@ -273,7 +273,7 @@ class CBOSAScraper:
 
         # If no primary results found, look for alternative patterns but still respect class filtering
         if not case_data:
-            self.loggerwarning(
+            self.logger.warning(
                 "No primary results found with 'info-list-value' class, checking alternative patterns..."
             )
             # Look for any links that might be case results, but still check parent classes
@@ -458,7 +458,7 @@ class CBOSAScraper:
                     break
             
             if not rtf_link:
-                self.loggerwarning(f"No RTF download link found for {case_url}")
+                self.logger.warning(f"No RTF download link found for {case_url}")
                 return None
             
             # Download RTF content
