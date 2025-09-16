@@ -117,13 +117,16 @@ class CBOSABot:
             results['cases_analyzed'] = len(analysis_result['analyses'])
             self.logger.info(f"✅ Przeanalizowano {results['cases_analyzed']} orzeczeń")
             
-            # Krok 4: Generowanie newslettera HTML
-            self.logger.info("📄 Generowanie newslettera HTML...")
-            newsletter_html = self._generate_simple_newsletter_html(
+            # Krok 4: Budowanie załączników (DOCX, ZIP)
+            self.logger.info("📎 Budowanie załączników (DOCX, ZIP)...")
+            attachments_triplets = self.attachments_builder.build_all(
                 analyses=analysis_result['analyses'],
-                config_name=config.short_name,
-                stats=analysis_result['stats']
+                search_params=config.config,
+                stats=analysis_result['stats'],
+                successful_downloads=successful_downloads
             )
+            # BrevoEmailService (jeśli oczekuje listy (filename, bytes)):
+            attachments = [(name, data) for (name, data, _mime) in attachments_triplets]
             
             # Krok 5: Wysyłka newsletterów do wszystkich subskrybentów
             self.logger.info("📧 Wysyłanie newsletterów do subskrybentów...")
@@ -134,38 +137,69 @@ class CBOSABot:
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
             
-            # Pobierz szczegóły użytkowników-subskrybentów
-            recipients = []
+            # Przygotowanie szablonu email (raz dla wszystkich)
+            templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+            html_tpl_path = os.path.join(templates_dir, "email_body.html")
+            now = datetime.now(timezone.utc)
+            
+            # Wysyłka do każdego subskrybenta z personalizacją
+            email_results = []
             for subscription in subscribers:
                 user = self.db_manager.get_user(subscription.user_id)
-                if user and user.is_active:
-                    recipients.append(EmailRecipient(
-                        email=user.email,
-                        name=user.name
-                    ))
+                if not user or not user.is_active:
+                    continue
+                    
+                # Personalizowany szablon dla każdego użytkownika
+                full_name = f"{(user.first_name or '').strip()} {(user.last_name or '').strip()}".strip()
+                hello_line = full_name if full_name else "Szanowni Państwo"
+                context = {
+                    "date_str": now.strftime("%d.%m.%Y"),
+                    "config_name": config.short_name,
+                    "cases_count": str(results['cases_analyzed']),
+                    "cases_without_justification": str(analysis_result['stats'].get('cases_without_justification', 0)),
+                    "hello_line": f"{hello_line},",
+                    "sender_name": "CBOSA Biuletyn",
+                    "contact_email": "marketing@gww.pl",
+                    "support_email": "marketing@gww.pl",
+                }
+                email_body = CBOSABot.render_file_template(html_tpl_path, context)
+                
+                # Wysyłka pojedynczego emaila
+                recipient = EmailRecipient(email=user.email, name=full_name or user.email)
+                
+                if hasattr(self.email_service, "send_newsletter"):
+                    email_result = self.email_service.send_newsletter(
+                        recipient=recipient,
+                        email_body=email_body,
+                        config_name=config.short_name,
+                        attachments=attachments
+                    )
+                else:
+                    from brevo_service import EmailContent
+                    subject = f"Biuletyn CBOSA: {config.short_name} - {now.strftime('%d.%m.%Y')}"
+                    email_result = self.email_service.send_email(
+                        recipients=[recipient],
+                        content=EmailContent(
+                            subject=subject,
+                            email_body=email_body,
+                            text_content="Biuletyn dostępny jest w wersji HTML."
+                        ),
+                        attachments=attachments
+                    )[0]
+                
+                email_results.append(email_result)
             
-            if not recipients:
-                self.logger.info("📪 Brak aktywnych subskrybentów dla tej konfiguracji")
-                self._update_execution_log_completed(execution_log.id, results)
-                return results
-            
-            # Wyślij newsletter do wszystkich subskrybentów tej konfiguracji
-            email_results = self.email_service.send_bulk_newsletter(
-                recipients=recipients,
-                newsletter_html=newsletter_html,
-                config_name=config.short_name
-            )
-            
-            # Zapisz logi emaili
+            # Zapisz logi emaili  
+            active_subscribers = [s for s in subscribers if self.db_manager.get_user(s.user_id) and self.db_manager.get_user(s.user_id).is_active]
             for i, email_result in enumerate(email_results):
-                recipient = recipients[i]
-                user = next((u for u in [self.db_manager.get_user_by_email(recipient.email)] if u), None)
+                subscription = active_subscribers[i]
+                user = self.db_manager.get_user(subscription.user_id)
                 
                 if user:
                     self.db_manager.create_email_log(
                         execution_log_id=execution_log.id,
                         user_id=user.id,
-                        email=recipient.email,
+                        email=user.email,
                         status='sent' if email_result.success else 'failed',
                         brevo_message_id=email_result.message_id,
                         error_message=email_result.error
@@ -174,7 +208,7 @@ class CBOSABot:
                     if email_result.success:
                         results['emails_sent'] += 1
                     else:
-                        results['errors'].append(f"Email do {recipient.email}: {email_result.error}")
+                        results['errors'].append(f"Email do {user.email}: {email_result.error}")
             
             results['success'] = True
             self.logger.info(f"📬 Wysłano {results['emails_sent']} newsletterów pomyślnie")
@@ -524,138 +558,6 @@ class CBOSABot:
             execution_details={'errors': results['errors']}
         )
 
-    def _generate_simple_newsletter_html(self, analyses: List[Dict], config_name: str, stats: Dict) -> str:
-        """Generuj prosty newsletter HTML"""
-        from datetime import datetime
-        
-        current_date = datetime.now().strftime('%d.%m.%Y')
-        
-        html_content = f"""<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biuletyn CBOSA - {config_name}</title>
-    <style>
-        body {{ 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f9f9f9;
-        }}
-        
-        .newsletter-header {{ 
-            background: linear-gradient(135deg, #2c3e50, #3498db); 
-            color: white;
-            padding: 2rem; 
-            margin-bottom: 2rem; 
-            border-radius: 10px;
-            text-align: center;
-        }}
-        
-        .newsletter-header h1 {{
-            margin: 0 0 10px 0;
-            font-size: 2.2rem;
-        }}
-        
-        .newsletter-header .date {{
-            font-size: 1.1rem;
-            opacity: 0.9;
-        }}
-        
-        .summary {{
-            background: #e8f4f8;
-            border-left: 4px solid #3498db;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            border-radius: 5px;
-        }}
-        
-        .judgment-article {{
-            background: white;
-            border-radius: 8px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            border-left: 4px solid #27ae60;
-        }}
-        
-        .judgment-article h2 {{
-            color: #2c3e50;
-            margin-top: 0;
-            font-size: 1.4rem;
-            line-height: 1.3;
-        }}
-        
-        .judgment-content {{
-            font-size: 1rem;
-            line-height: 1.7;
-        }}
-        
-        .footer {{
-            text-align: center;
-            margin-top: 3rem;
-            padding: 2rem;
-            background: #34495e;
-            color: white;
-            border-radius: 5px;
-        }}
-    </style>
-</head>
-<body>
-    <div class="newsletter-header">
-        <h1>📊 Biuletyn CBOSA</h1>
-        <div class="date">{current_date} • {config_name}</div>
-    </div>
-    
-    <div class="summary">
-        <h3>📋 Podsumowanie</h3>
-        <p>Znaleziono i przeanalizowano <strong>{len(analyses)} orzeczeń</strong> zgodnych z kryteriami wyszukiwania.</p>
-    </div>
-"""
-
-        # Dodaj artykuły z analizami
-        for i, analysis in enumerate(analyses, 1):
-            analysis_text = analysis.get('analysis', 'Brak analizy')
-            
-            html_content += f"""
-    <div class="judgment-article">
-        <h2>Orzeczenie #{i}</h2>
-        <div class="judgment-content">
-            {self._format_analysis_as_html(analysis_text)}
-        </div>
-    </div>
-"""
-
-        # Dodaj stopkę
-        html_content += f"""
-    <div class="footer">
-        <p>🤖 Automatyczny biuletyn CBOSA Bot</p>
-        <p><small>Newsletter wygenerowany automatycznie na podstawie bazy orzeczeń CBOSA</small></p>
-    </div>
-</body>
-</html>
-"""
-        
-        return html_content
-    
-    def _format_analysis_as_html(self, analysis_text: str) -> str:
-        """Sformatuj tekst analizy jako HTML"""
-        if not analysis_text:
-            return "<p>Brak analizy</p>"
-        
-        # Zamień nowe linie na paragrafy
-        paragraphs = analysis_text.strip().split('\n\n')
-        html_paragraphs = []
-        
-        for paragraph in paragraphs:
-            if paragraph.strip():
-                html_paragraphs.append(f"<p>{paragraph.strip()}</p>")
-        
-        return '\n'.join(html_paragraphs)
 
     @staticmethod
     def render_file_template(path: str, context: Dict[str, str]) -> str:
