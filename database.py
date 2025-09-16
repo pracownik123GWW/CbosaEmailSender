@@ -176,6 +176,11 @@ class DatabaseManager:
         with self.get_session() as session:
             return session.query(SearchConfiguration).filter(SearchConfiguration.id == config_id).first()
     
+    def get_all_active_search_configurations(self) -> List[SearchConfiguration]:
+        """Pobierz wszystkie aktywne konfiguracje wyszukiwania"""
+        with self.get_session() as session:
+            return session.query(SearchConfiguration).filter(SearchConfiguration.is_active == True).all()
+    
     def get_all_active_subscriptions(self):
         with self.get_session() as session:
             return (
@@ -269,7 +274,7 @@ class DatabaseManager:
     
     # Metody dla logów emaili
     def create_email_log(self, execution_log_id: int, user_id: int, email: str, status: str, 
-                        brevo_message_id: str = None, error_message: str = None) -> EmailLog:
+                        brevo_message_id: Optional[str] = None, error_message: Optional[str] = None) -> EmailLog:
         """Utwórz nowy log emaila"""
         with self.get_session() as session:
             log = EmailLog(
