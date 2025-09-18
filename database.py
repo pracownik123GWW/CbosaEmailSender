@@ -11,7 +11,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy import BigInteger, create_engine, Column, String, Integer, DateTime, Boolean, JSON, Text, ForeignKey, Enum as SqlEnum
 from sqlalchemy.orm import sessionmaker, Session, relationship, declarative_base, joinedload
 
-from models import DateRangeEnum
+from models import DateRangeEnum, JudgementStatusEnum
 
 Base = declarative_base()
 
@@ -107,6 +107,21 @@ class EmailLog(Base):
     # Relacje
     execution_log = relationship("ExecutionLog", back_populates="email_logs")
     user = relationship("User", back_populates="email_logs")
+
+class PendingJudgment(Base):
+    __tablename__ = "pending_judgments"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    signature = Column(String(255), nullable=False)
+    url = Column(String(500), nullable=False)
+    search_config_id = Column(BigInteger, ForeignKey("search_configurations.id"), nullable=False)
+    found_date = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
+    last_checked = Column(DateTime)
+    status = Column(
+        SqlEnum(JudgementStatusEnum, name="judgment_status_enum"),
+        nullable=False,
+        server_default=JudgementStatusEnum.NO_JUSTIFICATION.value
+    )
 
 class DatabaseManager:
     """Menedżer bazy danych"""
