@@ -5,7 +5,6 @@ Koordynuje scrapowanie, analizę AI i wysyłkę newsletterów
 """
 
 import os
-import sys
 import logging
 from typing import List, Dict, Any
 from datetime import datetime, timezone
@@ -235,87 +234,6 @@ class CBOSABot:
             )
             
             raise
-    #         templates_dir = os.path.join(os.path.dirname(__file__), "templates")
-    #         html_tpl_path = os.path.join(templates_dir, "email_body.html")
-
-    #         for subscription in subscribers:
-    #             user = self.db_manager.get_user(subscription.user_id)
-    #             if not user or not user.is_active:
-    #                 continue
-
-    #             full_name = f"{user.first_name} {user.last_name}".strip()
-    #             hello_line = full_name if full_name else "Szanowni Państwo"
-
-    #             # 👇 personalizowany kontekst dla każdego użytkownika
-    #             context = {
-    #                 "date_str": now.strftime("%d.%m.%Y"),
-    #                 "config_name": config.short_name,
-    #                 "cases_count": str(results['cases_analyzed']),
-    #                 "cases_without_justification": str(analysis_result['stats'].get('cases_without_justification', 0)),
-    #                 "hello_line": f"{hello_line},",
-    #                 "sender_name": "CBOSA Biuletyn",
-    #                 "contact_email": "marketing@gww.pl",
-    #                 "support_email": "marketing@gww.pl",
-    #             }
-
-    #             email_body = CBOSABot.render_file_template(html_tpl_path, context)
-
-    #             # wysyłka do pojedynczego użytkownika
-    #             recipient = EmailRecipient(email=user.email, name=full_name or user.email)
-    #             email_result = self.email_service.send_newsletter(  # 👈 zamiast send_bulk_newsletter
-    #                 recipient=recipient,
-    #                 email_body=email_body,
-    #                 config_name=config.short_name,
-    #                 attachments=attachments
-    #             )
-
-    #             # logowanie
-    #             self.db_manager.create_email_log(
-    #                 execution_log_id=execution_log.id,
-    #                 user_id=user.id,
-    #                 email=recipient.email,
-    #                 status='sent' if email_result.success else 'failed',
-    #                 brevo_message_id=email_result.message_id,
-    #                 error_message=email_result.error
-    #             )
-
-    #             if email_result.success:
-    #                 results['emails_sent'] += 1
-    #             else:
-    #                 results['errors'].append(f"Email do {recipient.email}: {email_result.error}")
-            
-    #         results['success'] = True
-    #         self.logger.info(f"📬 Wysłano {results['emails_sent']} newsletterów pomyślnie")
-            
-    #         # Zaktualizuj log wykonania z sukcesem
-    #         self._update_execution_log_completed(execution_log.id, results)
-            
-    #         return results
-            
-    #     except Exception as e:
-    #         self.logger.exception("❌ Błąd podczas wykonywania konfiguracji")
-    #         results["errors"].append({
-    #             "message": str(e),
-    #             "traceback": traceback.format_exc()
-    #         })
-            
-    #         # Zaktualizuj log wykonania z błędem
-    #         self.db_manager.update_execution_log(
-    #             log_id=execution_log.id,
-    #             status='failed',
-    #             completed_at=datetime.now(timezone.utc),
-    #             cases_found=results['cases_found'],
-    #             cases_analyzed=results['cases_analyzed'],
-    #             emails_sent=results['emails_sent'],
-    #             error_message=str(e),
-    #             execution_details={'errors': results['errors']}
-    #         )
-            
-    #         raise
-        
-    #     finally:
-    #         # cleanup temporary files
-    #         self.attachments_builder.cleanup()
     
     def execute_subscription(self, subscription) -> Dict[str, Any]:
         """
