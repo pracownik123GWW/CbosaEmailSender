@@ -19,30 +19,22 @@ class JudgmentAnalyzer:
         self.no_uzasadnienie_count = 0
         
         # Fixed prompt for newsletter analysis
-        self.analysis_prompt = """
-Na podstawie poniższego orzeczenia sądowego przygotuj artykuł do newslettera prawniczego w następującym formacie i stylu.
+        self.analysis_prompt = """Na podstawie poniższego orzeczenia sądowego przygotuj artykuł do newslettera prawniczego w następującym formacie:
 
-Format i styl (BEZWZGLĘDNIE PRZESTRZEGAJ):
-- Pierwsza linia to sam atrakcyjny tytuł (maksymalnie 80 znaków), bez żadnych prefiksów typu "Tytuł:"; tytuł ma być w formacie "**{tytuł}**"
-- Następnie napisz jeden ciągły tekst analityczny z podziałem na akapity. Aby zacząć nowy akapit użyj jednego znaku nowej linii (Enter).
-- bez nagłówków, wypunktowań i śródtytułów.
-- Ostatnia linia musi zaczynać się od nowej linii i dosłownie od: "Sygnatura: " i zawierać sygnaturę, sąd i datę orzeczenia. np. "I SA/Gd 515/25, WSA w Gdańsku, 15 września 2025 r." i nic więcej
-- Zachowaj formalny, profesjonalny ton. Nie dodawaj metakomentarzy ani uwag o instrukcjach.
-- Dla każdego punktu z "Treść analizy" poniżej napisz oddzielny akapit.
+Zacznij od atrakcyjnego tytułu (maksymalnie 80 znaków) umieszczonego w nagłówku.
 
+Następnie napisz ciągły, płynny tekst analityczny bez nagłówków sekcji. Tekst powinien zawierać wszystkie poniższe elementy wplecione naturalnie w narrację:
 
-Treść analizy (wpleciona naturalnie w narrację):
-- Krótki wstęp (2–3 zdania) wyjaśniający, czego dotyczy sprawa i dlaczego jest istotna.
-- Zwięzły, precyzyjny opis stanu faktycznego.
-- Analiza prawna z powołaniem zastosowanych przepisów i podstaw rozstrzygnięcia.
-- Argumenty stron oraz uzasadnienie sądu.
-- Ocena, czy orzeczenie jest nowatorskie, czy mieści się w utrwalonej linii orzeczniczej.
-- Praktyczne znaczenie wyroku (dla gmin, firm, osób fizycznych) 
-- Wskazanie ryzyk wynikających z wyroku
-- Wskazanie dobrych praktyk wynikających z wyroku
+- Zaciekawiający wstęp (2-3 zdania) wyjaśniający czego dotyczy sprawa i dlaczego jest istotna
+- Stan faktyczny opisany w uproszczeniu ale precyzyjnie
+- Analizę prawną z zastosowanymi przepisami i podstawami prawnymi
+- Argumenty stron i uzasadnienie sądu
+- Informację czy orzeczenie jest nowatorskie czy opiera się na ugruntowanej linii orzeczniczej
+- Praktyczne znaczenie wyroku (dla gmin, firm, osób fizycznych)
+- Ryzyka lub dobre praktyki wynikające z orzeczenia
+- Na końcu sygnaturę sprawy, sąd i datę wyroku
 
-W razie braku informacji w materiale źródłowym — nie wymyślaj, pomiń.
-PAMIĘTAJ - Całość twojej odpowiedzi musi bezwzględnie mieścić się w przedziale od 360 do 380 słów.
+Pisz profesjonalnie ale przystępnie jako jeden ciągły tekst bez podziału na sekcje. Unikaj nadmiaru formalizmów.
 
 Orzeczenie do analizy:
 """
@@ -134,19 +126,27 @@ Orzeczenie do analizy:
             # Extract plain text from RTF
             judgment_text = self.extract_text_from_rtf(rtf_content)
             
+            # Prepare the full prompt using the single analysis prompt
+            full_prompt = self.analysis_prompt + judgment_text
+            
             # Call OpenAI API
-            response = self.client.responses.create(
-                model="gpt-5-nano",
-                instructions="Jesteś ekspertem prawa administracyjnego. Generujesz odpowiedzi po Polsku",
-                input=self.analysis_prompt + judgment_text,
-                reasoning={"effort": "low"},
-                text={"verbosity": "low"},
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Jesteś ekspertem od prawa administracyjnego. Analizujesz orzeczenia sądów administracyjnych w Polsce i tworzysz szczegółowe biuletyny analityczne."
+                    },
+                    {
+                        "role": "user",
+                        "content": full_prompt
+                    }
+                ],
+                max_tokens=2000,
+                temperature=0.3,
             )
             
-            response_text = response.output[1].content[0].text
-
-            #usunięcie pustych linii
-            analysis_text = "\n".join(line for line in response_text.splitlines() if line.strip())
+            analysis_text = response.choices[0].message.content
             
             # Structure the response
             result = {
