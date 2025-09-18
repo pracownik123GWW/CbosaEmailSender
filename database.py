@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from sqlalchemy import BigInteger, create_engine, Column, String, Integer, DateTime, Boolean, JSON, Text, ForeignKey, Enum as SqlEnum
 from sqlalchemy.orm import sessionmaker, Session, relationship, declarative_base, joinedload
+from sqlalchemy.exc import IntegrityError
 
 from models import DateRangeEnum, JudgementStatusEnum
 
@@ -112,7 +113,7 @@ class PendingJudgment(Base):
     __tablename__ = "pending_judgments"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    signature = Column(String(255), nullable=False)
+    signature = Column(String(255), nullable=False, unique=True)
     url = Column(String(500), nullable=False)
     search_config_id = Column(BigInteger, ForeignKey("search_configurations.id"), nullable=False)
     found_date = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
@@ -309,3 +310,66 @@ class DatabaseManager:
         """Pobierz logi emaili dla określonego wykonania"""
         with self.get_session() as session:
             return session.query(EmailLog).filter(EmailLog.execution_log_id == execution_log_id).all()
+    
+    def get_pending_for_config(self, search_config_id: int) -> List[PendingJudgment]:
+        """Zwraca pendingi NO_JUSTIFICATION dla danej konfiguracji."""
+        with self.get_session() as session:
+            return (
+                session.query(PendingJudgment)
+                .filter(
+                    PendingJudgment.search_config_id == search_config_id,
+                    PendingJudgment.status == JudgementStatusEnum.NO_JUSTIFICATION,
+                )
+                .order_by(PendingJudgment.found_date.asc())
+                .all()
+            )
+        
+    def mark_pending_as_processed(self, pending_id: int) -> Optional[PendingJudgment]:
+        """Ustawia status PROCESSED i last_checked=now."""
+        with self.get_session() as session:
+            pj = session.query(PendingJudgment).filter(PendingJudgment.id == pending_id).first()
+            if not pj:
+                return None
+            pj.status = JudgementStatusEnum.PROCESSED
+            pj.last_checked = datetime.now(timezone.utc)
+            session.commit()
+            session.refresh(pj)
+            return pj
+        
+    def pending_signature_exists(self, signature: str) -> bool:
+        """Szybkie sprawdzenie, czy sygnatura już jest w pending_judgments."""
+        with self.get_session() as session:
+            return session.query(PendingJudgment.id)\
+                .filter(PendingJudgment.signature == signature)\
+                .first() is not None
+    
+    def create_pending_judgment(
+        self,
+        *,
+        signature: str,
+        url: str,
+        search_config_id: int,
+        status: JudgementStatusEnum = JudgementStatusEnum.NO_JUSTIFICATION,
+        found_date: Optional[datetime] = None,
+    ) -> PendingJudgment:
+        """
+        Prosty INSERT (bez upsertu).
+        Jeśli w bazie jest UNIQUE na 'signature' i trafi się duplikat — poleci IntegrityError.
+        """
+        with self.get_session() as session:
+            pj = PendingJudgment(
+                signature=signature,
+                url=url,
+                search_config_id=search_config_id,
+                status=status,
+                found_date=found_date or datetime.now(timezone.utc),
+            )
+            session.add(pj)
+            try:
+                session.commit()
+            except IntegrityError as e:
+                session.rollback()
+                raise ValueError(f"Sygnatura już istnieje: {signature}") from e
+
+            session.refresh(pj)
+            return pj
