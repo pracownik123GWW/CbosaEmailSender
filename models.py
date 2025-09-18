@@ -33,3 +33,7 @@ class DateRangeEnum(enum.Enum):
             start = today - timedelta(days=self.days)
             return start, today
         return today, today  # fallback (nie powinno się zdarzyć)
+
+class JudgementStatusEnum(enum.Enum):
+    NO_JUSTIFICATION = 'no_justification'
+    PROCESSED = 'processed'
