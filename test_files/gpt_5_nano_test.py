@@ -135,7 +135,7 @@ def gpt5():
     # usunięcie pustych linii
     clean_text = "\n".join(line for line in text.splitlines() if line.strip())
 
-    #print(clean_text)
+    print(clean_text)
 
 def gpt4():
     full_prompt_2 = analysis_prompt_2 + judgment_text
