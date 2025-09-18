@@ -502,3 +502,36 @@ class CBOSAScraper:
         self.logger.info(f"Downloaded {successful_downloads}/{total_cases} cases successfully")
         
         return results
+    
+    def has_justification_for_signature(self, signature: str):
+        """
+        Sprawdza, czy dla danej sygnatury jest dostępne uzasadnienie.
+        Zwraca tuple: (bool_found, case_dict_or_None).
+        case_dict ma pola: {'url': ..., 'signature': ...} – zgodnie z self.search_cases.
+        """
+        try:
+            params = {
+                'signature': signature,
+                'with_justification': "Tak"
+            }
+            results = self.search_cases(params, date_range=None, max_results=1)
+            if results:
+                return True, results[0]
+            return False, None
+        except Exception:
+            self.logger.exception(f"Error checking justification for signature: {signature}")
+            return False, None
+
+
+    def find_case_by_signature(self, signature: str):
+        """
+        Szuka sprawy po sygnaturze bez filtra uzasadnienia (dowolne).
+        Zwraca pierwszy wynik lub None.
+        """
+        try:
+            params = {'signature': signature}
+            results = self.search_cases(params, date_range=None, max_results=1)
+            return results[0] if results else None
+        except Exception:
+            self.logger.exception(f"Error finding case by signature: {signature}")
+            return None
