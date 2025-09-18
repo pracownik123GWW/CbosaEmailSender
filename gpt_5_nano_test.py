@@ -1,7 +1,7 @@
 import os
 from openai import OpenAI
 import dotenv
-
+import time
 # Upewnij się, że masz ustawiony klucz:
 # export OPENAI_API_KEY="twój_klucz_api"
 dotenv.load_dotenv()
@@ -37,13 +37,31 @@ Uzasadnienie
 B.S. pismem z 16 czerwca 2025 r. złożyła skargę na decyzję Samorządowego Kolegium Odwoławczego w Gdańsku w przedmiocie podatku od nieruchomości za 2024 rok.
 
 W piśmie z 11 sierpnia 2025 r. B.S. oświadczyła, że nie składała skargi do Wojewódzkiego Sądu Administracyjnego w Gdańsku, a pismo z 16 czerwca
+
 2025 r. było wnioskiem, żądaniem, skierowanym do Prezydenta Miasta Gdyni oraz do wiadomości Samorządowego Kolegium Odwoławczego w Gdańsku.
 
-(... skrócone dalsze uzasadnienie ...)
+Wojewódzki Sąd Administracyjny w Gdańsku zważył, co następuje:
+
+Postępowanie sądowe należało umorzyć.
+
+Zgodnie z treścią art. 161 § 1 pkt 3 ustawy z dnia 30 sierpnia 2002 r. Prawo o postępowaniu przed sądami administracyjnymi (Dz. U. z 2024 r. poz. 935 z późn. zm.) - zwanej dalej: "p.p.s.a.", sąd wydaje postanowienie o umorzeniu postępowania, gdy postępowanie z innych przyczyn, niż cofnięcie skargi lub śmierć strony, stało się bezprzedmiotowe.
+
+Bezprzedmiotowość postępowania sądowoadministracyjnego "z innych przyczyn" w rozumieniu powołanego przepisu zachodzi wtedy, gdy w toku postępowania, a przed wydaniem wyroku, przestaje istnieć przedmiot zaskarżenia.
+
+W niniejszej sprawie skarżąca pismem z 16 czerwca 2025 r. złożyła skargę na decyzję Samorządowego Kolegium Odwoławczego w Gdańsku w przedmiocie podatku od nieruchomości za 2024 rok. Już po wszczęciu postępowania sądowoadministracyjnego skarżąca oświadczyła jednak, że nie składała skargi do sądu administracyjnego,
+
+a wskazane pismo stanowiło wniosek kierowany do Prezydenta Miasta Gdyni oraz do wiadomości Samorządowego Kolegium Odwoławczego w Gdańsku.
+
+Z powyższego oświadczenia zawartego w piśmie z 11 sierpnia 2025 r. wynika zatem, że intencją skarżącej nie było wszczynanie postępowania przed sądem administracyjnym, a zatem postępowanie takie nie może się toczyć.
+
+Postępowanie sądowoadministracyjne wszczyna się w momencie skutecznego wniesienia skargi przez uprawniony podmiot. Z tego względu struktura tego postępowania ukształtowana jest jako spór prowadzony przed sądem przez podmiot żądający udzielenia ochrony prawnej i organ administracji publicznej, którego działanie lub zaniechanie stało się przyczyną zgłoszenia żądania udzielenia ochrony prawnej. Brak skargi oznacza, że sprawa nie może się toczyć, a Sąd nie jest władny do wydania merytorycznego rozstrzygnięcia sprawy. W takiej sytuacji uznać należy, że postępowanie sądowoadministracyjne jako bezprzedmiotowe należało umorzyć.
+
+W tym stanie rzeczy Sąd, na mocy art. 161 § 1 pkt 3 p.p.s.a., orzekł jak w sentencji postanowienia.
 """
 
 # Prompt taki sam jak w Twoim kodzie
-analysis_prompt = """Na podstawie poniższego orzeczenia sądowego przygotuj artykuł do newslettera prawniczego w następującym formacie i stylu.
+analysis_prompt_1 = """
+Na podstawie poniższego orzeczenia sądowego przygotuj artykuł do newslettera prawniczego w następującym formacie i stylu.
 
 Format i styl (BEZWZGLĘDNIE PRZESTRZEGAJ):
 - Pierwsza linia to sam atrakcyjny tytuł (maksymalnie 80 znaków), bez żadnych prefiksów typu "Tytuł:"; tytuł ma być w formacie "**{tytuł}**"
@@ -51,7 +69,7 @@ Format i styl (BEZWZGLĘDNIE PRZESTRZEGAJ):
 - bez nagłówków, wypunktowań i śródtytułów.
 - Ostatnia linia musi zaczynać się od nowej linii i dosłownie od: "Sygnatura: " i zawierać sygnaturę, sąd i datę orzeczenia. np. "I SA/Gd 515/25, WSA w Gdańsku, 15 września 2025 r." i nic więcej
 - Zachowaj formalny, profesjonalny ton. Nie dodawaj metakomentarzy ani uwag o instrukcjach.
-- Dla każdego punktu z "Treść analizy" poniżej napisz oddzielny akapit.
+- Dla każdego punktu z "Treść analizy" poniżej napisz oddzielny akapit ale nie wpisuj tytułów akapitów z dwukropkiem lub myślnikiem. Pisz jako ciągły tekst
 
 
 Treść analizy (wpleciona naturalnie w narrację):
@@ -65,36 +83,84 @@ Treść analizy (wpleciona naturalnie w narrację):
 - Wskazanie dobrych praktyk wynikających z wyroku
 
 W razie braku informacji w materiale źródłowym — nie wymyślaj, pomiń.
-PAMIĘTAJ - Całość twojej odpowiedzi musi bezwzględnie mieścić się w przedziale od 360 do 380 słów.
+PAMIĘTAJ - Całość twojej odpowiedzi musi bezwzględnie mieścić się w przedziale od 300 do 350 słów.
 
 Orzeczenie do analizy:
 """
 
-# Zbudowanie pełnego promptu
-full_prompt = analysis_prompt + judgment_text
 
-response = client.responses.create(
-    model="gpt-5-nano",
-    instructions="Jesteś ekspertem prawa administracyjnego. Generujesz odpowiedzi po Polsku",
-    input=analysis_prompt + judgment_text,
-    reasoning={"effort": "low"},
-    text={"verbosity": "low"},
-)
+# Test o4
+analysis_prompt_2 = """
+Na podstawie poniższego orzeczenia sądowego przygotuj artykuł do newslettera prawniczego w następującym formacie:
 
-input_tokens = response.usage.input_tokens
-output_tokens = response.usage.output_tokens
+Zacznij od atrakcyjnego tytułu (maksymalnie 80 znaków) umieszczonego w nagłówku.
 
-cost_input = input_tokens * 0.00000005   # 0.050 / 1_000_000
-cost_output = output_tokens * 0.0000004  # 0.400 / 1_000_000
+Następnie napisz ciągły, płynny tekst analityczny bez nagłówków sekcji. Tekst powinien zawierać wszystkie poniższe elementy wplecione naturalnie w narrację:
 
-total_cost = cost_input + cost_output
+- Zaciekawiający wstęp (2-3 zdania) wyjaśniający czego dotyczy sprawa i dlaczego jest istotna
+- Stan faktyczny opisany w uproszczeniu ale precyzyjnie
+- Analizę prawną z zastosowanymi przepisami i podstawami prawnymi
+- Argumenty stron i uzasadnienie sądu
+- Informację czy orzeczenie jest nowatorskie czy opiera się na ugruntowanej linii orzeczniczej
+- Praktyczne znaczenie wyroku (dla gmin, firm, osób fizycznych)
+- Ryzyka lub dobre praktyki wynikające z orzeczenia
+- Na końcu sygnaturę sprawy, sąd i datę wyroku
 
-print(f"Koszt: {total_cost:.6f} USD")
+Pisz profesjonalnie ale przystępnie jako jeden ciągły tekst bez podziału na sekcje. Unikaj nadmiaru formalizmów.
+Zadbaj aby długość twojej odpowiedzi nigdy nie przekroczyła 390 słów!
 
-print("\n=== Wygenerowane podsumowanie ===\n")
-text = response.output[1].content[0].text
+Orzeczenie do analizy:
+"""
 
-# usunięcie pustych linii
-clean_text = "\n".join(line for line in text.splitlines() if line.strip())
 
-print(clean_text)
+
+def gpt5():
+    full_prompt_1 = analysis_prompt_1 + judgment_text
+
+    start = time.time_ns()
+
+    response = client.responses.create(
+        model="gpt-5-nano",
+        instructions="Jesteś ekspertem prawa administracyjnego. Generujesz odpowiedzi po Polsku",
+        input=full_prompt_1 + judgment_text,
+        reasoning={"effort": "medium"},
+        text={"verbosity": "low"},
+    )
+
+    print(f"Czas odpowiedzi: {(time.time_ns() - start)/1000_000_000} s")
+
+    print("\n=== Wygenerowane podsumowanie 1 ===\n")
+    text = response.output[1].content[0].text
+
+    # usunięcie pustych linii
+    clean_text = "\n".join(line for line in text.splitlines() if line.strip())
+
+    #print(clean_text)
+
+def gpt4():
+    full_prompt_2 = analysis_prompt_2 + judgment_text
+
+    start = time.time_ns()
+    response = client.chat.completions.create(
+                    model="gpt-4.1-mini",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Jesteś ekspertem od prawa administracyjnego. Analizujesz orzeczenia sądów administracyjnych w Polsce i tworzysz szczegółowe biuletyny analityczne."
+                        },
+                        {
+                            "role": "user",
+                            "content": full_prompt_2
+                        }
+                    ],
+                    max_tokens=2000,
+                    temperature=0.3,
+                )
+            
+    print(f"Czas odpowiedzi: {(time.time_ns() - start)/1000_000_000} s")
+    analysis_text = response.choices[0].message.content
+    print("\n=== Wygenerowane podsumowanie 2 ===\n")
+    print(analysis_text)
+
+
+gpt4()
