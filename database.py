@@ -179,7 +179,7 @@ class DatabaseManager:
     def get_all_active_search_configurations(self) -> List[SearchConfiguration]:
         """Pobierz wszystkie aktywne konfiguracje wyszukiwania"""
         with self.get_session() as session:
-            return session.query(SearchConfiguration).filter(SearchConfiguration.is_active == True).all()
+            return session.query(SearchConfiguration).filter(SearchConfiguration.is_active).all()
     
     def get_all_active_subscriptions(self):
         with self.get_session() as session:
