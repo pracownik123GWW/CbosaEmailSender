@@ -75,7 +75,7 @@ class CBOSAScraper:
                     self.logger.info(
                         f"Date filtering enabled: {self.date_filter.get_date_filter_summary(date_from_str, date_to_str)}"
                     )
-                    self.logger.debug("Search params being sent to CBOSA: %s",
+                    self.logger.info("Search params being sent to CBOSA: %s",
                         json.dumps(search_params, ensure_ascii=False, indent=2)
                     )
                 except ValueError as e:
