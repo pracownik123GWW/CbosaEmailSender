@@ -20,7 +20,9 @@ class DocxNewsletterGenerator:
         Tworzy plik DOCX z analizami AI i zwraca pełną ścieżkę do pliku.
         """
         current_date = datetime.now().strftime('%Y%m%d_%H%M%S')
-        output_path = os.path.join(self.output_dir, f"CBOSA_AI_Biuletyn_{current_date}.docx")
+        output_path = os.path.normpath(
+            os.path.join(self.output_dir, f"CBOSA_AI_Biuletyn_{current_date}.docx")
+        )
 
         doc = Document()
 

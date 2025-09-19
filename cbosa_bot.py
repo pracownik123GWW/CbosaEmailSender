@@ -31,36 +31,34 @@ class CBOSABot:
         self.analyzer = JudgmentAnalyzer()
         self.attachments_builder = EmailAttachmentBuilder(output_dir="./out")
         self.logger = logging.getLogger(__name__)
-        
-        self.logger.info("🤖 CBOSA Bot zainicjalizowany")
     
     def execute_scheduled_run(self):
         """Wykonaj zaplanowane uruchomienie bota - zoptymalizowana wersja"""
-        self.logger.info("🤖 Rozpoczęcie zaplanowanego uruchomienia CBOSA Bot...")
+        self.logger.info("Rozpoczęcie zaplanowanego uruchomienia CBOSA Bot...")
         
         try:
             # Pobierz wszystkie aktywne konfiguracje wyszukiwania
             search_configs = self.db_manager.get_all_active_search_configurations()
             
             if not search_configs:
-                self.logger.warning("⚠️ Nie znaleziono aktywnych konfiguracji wyszukiwania")
+                self.logger.warning("Nie znaleziono aktywnych konfiguracji wyszukiwania")
                 return
             
-            self.logger.info(f"📋 Znaleziono {len(search_configs)} aktywnych konfiguracji wyszukiwania")
+            self.logger.info(f"Znaleziono {len(search_configs)} aktywnych konfiguracji wyszukiwania")
             
             # Wykonaj każdą konfigurację wyszukiwania
             for config in search_configs:
                 self.execute_search_configuration(config)
             
-            self.logger.info("✅ Zaplanowane uruchomienie zakończone pomyślnie")
-            
+            self.logger.info("Ukończono zaplanowane wykonanie")
+                        
         except Exception:
             self.logger.exception("❌ Błąd podczas zaplanowanego uruchomienia")
             raise
     
     def execute_search_configuration(self, config):
         """Wykonaj pojedynczą konfigurację wyszukiwania - zoptymalizowana wersja"""
-        self.logger.info(f"🔍 Wykonywanie konfiguracji wyszukiwania: {config.short_name}")
+        self.logger.info(f"Wykonywanie konfiguracji wyszukiwania: {config.short_name}")
         
         # Utwórz log wykonania
         execution_log = self.db_manager.create_execution_log(
@@ -79,7 +77,7 @@ class CBOSABot:
         
         try:
             # Krok 1: Scrapowanie CBOSA
-            self.logger.info("📥 Scrapowanie CBOSA w poszukiwaniu orzeczeń...")
+            self.logger.info("Scrapowanie CBOSA w poszukiwaniu orzeczeń...")
             case_data = self.scraper.search_cases(
                 config.config,
                 config.date_range,
@@ -87,39 +85,36 @@ class CBOSABot:
             )
             
             if not case_data:
-                self.logger.info("📭 Nie znaleziono orzeczeń dla tej konfiguracji wyszukiwania")
+                self.logger.info("Nie znaleziono orzeczeń dla tej konfiguracji wyszukiwania")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
             
             results['cases_found'] = len(case_data)
-            self.logger.info(f"📊 Znaleziono {results['cases_found']} orzeczeń")
+            self.logger.info(f"Pobieranie treści orzeczeń dla {results['cases_found']} wyników")
             
             # Krok 2: Pobieranie treści RTF
-            self.logger.info("📄 Pobieranie treści orzeczeń...")
             download_results = self.scraper.download_multiple_cases(case_data)
             successful_downloads = [r for r in download_results if r['success']]
             
             if not successful_downloads:
-                self.logger.warning("⚠️ Nie udało się pobrać żadnych treści orzeczeń")
+                self.logger.warning("Nie udało się pobrać żadnych treści orzeczeń")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
             
-            self.logger.info(f"✅ Pobrano {len(successful_downloads)} treści orzeczeń")
-            
             # Krok 3: Analiza AI  
-            self.logger.info("🧠 Analiza orzeczeń za pomocą AI...")
+            self.logger.info("Analiza orzeczeń za pomocą AI...")
             analysis_result = self._analyze_cases_with_ai(successful_downloads)
             
             if not analysis_result['analyses']:
-                self.logger.warning("⚠️ Nie wygenerowano żadnych udanych analiz")
+                self.logger.warning("Nie wygenerowano żadnych udanych analiz")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
             
             results['cases_analyzed'] = len(analysis_result['analyses'])
-            self.logger.info(f"✅ Przeanalizowano {results['cases_analyzed']} orzeczeń")
+            self.logger.info(f"Przeanalizowano {results['cases_analyzed']} orzeczeń")
             
             # Krok 4: Budowanie załączników (DOCX, ZIP)
-            self.logger.info("📎 Budowanie załączników (DOCX, ZIP)...")
+            self.logger.info("Budowanie załączników (DOCX, ZIP)...")
             attachments_triplets = self.attachments_builder.build_all(
                 analyses=analysis_result['analyses'],
                 search_params=config.config,
@@ -130,11 +125,11 @@ class CBOSABot:
             attachments = [(name, data) for (name, data, _mime) in attachments_triplets]
             
             # Krok 5: Wysyłka newsletterów do wszystkich subskrybentów
-            self.logger.info("📧 Wysyłanie newsletterów do subskrybentów...")
+            self.logger.info("Wysyłanie newsletterów do subskrybentów...")
             subscribers = self.db_manager.get_subscriptions_for_config(config.id)
             
             if not subscribers:
-                self.logger.info("📪 Brak subskrybentów dla tej konfiguracji wyszukiwania")
+                self.logger.info("Brak subskrybentów dla tej konfiguracji wyszukiwania")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
             
@@ -212,7 +207,7 @@ class CBOSABot:
                         results['errors'].append(f"Email do {user.email}: {email_result.error}")
             
             results['success'] = True
-            self.logger.info(f"📬 Wysłano {results['emails_sent']} newsletterów pomyślnie")
+            self.logger.info(f"Wysłano {results['emails_sent']} newsletterów pomyślnie")
             
             # Zaktualizuj log wykonania z sukcesem
             self._update_execution_log_completed(execution_log.id, results)
@@ -223,7 +218,7 @@ class CBOSABot:
                 # jeśli chcesz, możesz doliczyć to do 'results' / statusu
                 results['emails_sent'] += pending_stats.get('emails_sent', 0)
                 self.logger.info(
-                    "📌 Backlog: sprawdzono=%d, resolved=%d, wysłane=%d",
+                    "Backlog: sprawdzono=%d, resolved=%d, wysłane=%d",
                     pending_stats.get('pendings_checked', 0),
                     pending_stats.get('resolved', 0),
                     pending_stats.get('emails_sent', 0),
@@ -241,7 +236,7 @@ class CBOSABot:
             return results
             
         except Exception as e:
-            self.logger.error(f"❌ Błąd podczas wykonywania konfiguracji {config.short_name}: {e}")
+            self.logger.exception(f"❌ Błąd podczas wykonywania konfiguracji {config.short_name}: {e}")
             results['errors'].append(str(e))
             
             # Zaktualizuj log wykonania z błędem
@@ -271,7 +266,7 @@ class CBOSABot:
 
         # Walidacje subskrypcji / użytkownika / konfiguracji
         if not subscription.is_active or not user or not user.is_active or not config or not config.is_active:
-            self.logger.info("⏭️ Pominięto subskrypcję (nieaktywna / brak usera lub konfiguracji)")
+            self.logger.info("Pominięto subskrypcję (nieaktywna / brak usera lub konfiguracji)")
             return {
                 'success': False,
                 'execution_log_id': None,
@@ -282,7 +277,7 @@ class CBOSABot:
             }
 
         self.logger.info(
-            f"🔔 Subskrypcja: user={user.email} ⇄ config={config.short_name}"
+            f"Subskrypcja: user={user.email} ⇄ config={config.short_name}"
         )
 
         # Utwórz log wykonania per konfiguracja (jeden log na subskrypcję)
@@ -301,8 +296,6 @@ class CBOSABot:
         }
 
         try:
-            # 1) Scrapowanie CBOSA
-            self.logger.info("📥 Scrapowanie CBOSA…")
             case_data = self.scraper.search_cases(
                 config.config,
                 date_range=config.date_range,
@@ -310,39 +303,36 @@ class CBOSABot:
             )
 
             if not case_data:
-                self.logger.info("📭 Brak orzeczeń dla tej subskrypcji")
+                self.logger.info("Brak orzeczeń dla tej subskrypcji")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
 
             results['cases_found'] = len(case_data)
-            self.logger.info(f"📊 Znaleziono {results['cases_found']} orzeczeń")
+            self.logger.info(f"Znaleziono {results['cases_found']} orzeczeń")
 
             # 2) Pobranie treści
-            self.logger.info("📄 Pobieranie treści orzeczeń…")
+            self.logger.info("Pobieranie treści orzeczeń…")
             download_results = self.scraper.download_multiple_cases(case_data)
             successful_downloads = [r for r in download_results if r['success']]
 
             if not successful_downloads:
-                self.logger.warning("⚠️ Nie udało się pobrać żadnych treści orzeczeń")
+                self.logger.warning("Nie udało się pobrać żadnych treści orzeczeń")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
 
-            self.logger.info(f"✅ Pobrano {len(successful_downloads)} treści orzeczeń")
-
             # 3) Analiza AI
-            self.logger.info("🧠 Analiza orzeczeń…")
+            self.logger.info("Analiza orzeczeń…")
             analysis_result = self._analyze_cases_with_ai(successful_downloads)
 
             if not analysis_result['analyses']:
-                self.logger.warning("⚠️ Brak udanych analiz")
+                self.logger.warning("Brak udanych analiz")
                 self._update_execution_log_completed(execution_log.id, results)
                 return results
 
             results['cases_analyzed'] = len(analysis_result['analyses'])
-            self.logger.info(f"✅ Przeanalizowano {results['cases_analyzed']} orzeczeń")
 
             # 4) Załączniki
-            self.logger.info("📎 Budowanie załączników (DOCX, ZIP)…")
+            self.logger.info("Budowanie załączników (DOCX, ZIP)…")
             attachments_triplets = self.attachments_builder.build_all(
                 analyses=analysis_result['analyses'],
                 search_params=config.config,
@@ -409,7 +399,7 @@ class CBOSABot:
             if email_result.success:
                 results['emails_sent'] = 1
                 results['success'] = True
-                self.logger.info(f"📬 Wysłano newsletter do: {recipient.email}")
+                self.logger.info(f"Wysłano newsletter do: {recipient.email}")
             else:
                 results['errors'].append(f"Email do {recipient.email}: {getattr(email_result, 'error', 'unknown error')}")
 
@@ -450,8 +440,6 @@ class CBOSABot:
             Wyniki analizy
         """
         try:
-            self.logger.info(f"🧠 Rozpoczęcie analizy AI {len(cases_data)} orzeczeń")
-            
             # Przygotuj orzeczenia do analizy
             judgments = []
             for case_data in cases_data:
@@ -473,8 +461,6 @@ class CBOSABot:
             
             # Filtruj udane analizy
             successful_analyses = [r for r in analysis_results if r['success']]
-            
-            self.logger.info(f"✅ Analiza zakończona: {len(successful_analyses)} udanych analiz")
             
             return {
                 'analyses': successful_analyses,
@@ -509,10 +495,10 @@ class CBOSABot:
         pendings = self.db_manager.get_pending_for_config(config.id)
 
         if not pendings:
-            self.logger.info("🗂️ Brak pendingów do sprawdzenia dla: %s", config.short_name)
+            self.logger.info("Brak pendingów do sprawdzenia dla: %s", config.short_name)
             return stats
 
-        self.logger.info("🔁 Sprawdzanie pendingów (%d) dla: %s", len(pendings), config.short_name)
+        self.logger.info("Sprawdzanie pendingów (%d) dla: %s", len(pendings), config.short_name)
 
         resolved_items = []
 
@@ -534,7 +520,7 @@ class CBOSABot:
 
                     if not rtf:
                         # coś nie gra – raportuj i zostaw jako NO_JUSTIFICATION (sprawdzimy następnym razem)
-                        self.logger.warning("⚠️ Znalazłem uzasadnienie dla %s, ale nie pobrałem RTF.", sig)
+                        self.logger.warning("Znalazłem uzasadnienie dla %s, ale nie pobrałem RTF.", sig)
                         self.db_manager.touch_pending_no_justification(pj.id)
                         continue
 
@@ -552,7 +538,7 @@ class CBOSABot:
                 self.db_manager.touch_pending_no_justification(pj.id)
 
         if not resolved_items:
-            self.logger.info("ℹ️ Brak uzasadnień, które się pojawiły dla: %s", config.short_name)
+            self.logger.info("Brak uzasadnień, które się pojawiły dla: %s", config.short_name)
             return stats
 
         # Analiza AI
@@ -569,7 +555,7 @@ class CBOSABot:
         analysis_results = self.analyzer.analyze_multiple_judgments(judgments)
         successful = [r for r in analysis_results if r.get("success")]
         if not successful:
-            self.logger.warning("⚠️ Nie udało się przeanalizować żadnego „spóźnionego” uzasadnienia.")
+            self.logger.warning("Nie udało się przeanalizować żadnego „spóźnionego” uzasadnienia.")
             return stats
 
         stats["resolved"] = len(successful)
@@ -598,7 +584,7 @@ class CBOSABot:
         # Wyślij osobny newsletter do subskrybentów tej konfiguracji
         subscribers = self.db_manager.get_subscriptions_for_config(config.id)
         if not subscribers:
-            self.logger.info("📪 Brak subskrybentów dla drugiego newslettera (%s)", config.short_name)
+            self.logger.info("Brak subskrybentów dla drugiego newslettera (%s)", config.short_name)
         else:
             templates_dir = os.path.join(os.path.dirname(__file__), "templates")
             html_tpl_path = os.path.join(templates_dir, "email_body.html")
@@ -651,7 +637,7 @@ class CBOSABot:
             self.db_manager.mark_pending_as_processed(item["pending"].id)
 
         self.logger.info(
-            "📨 Pendingi: sprawdzono=%d, uzasadnienia znalezione=%d, maile=%d",
+            "Pendingi: sprawdzono=%d, uzasadnienia znalezione=%d, maile=%d",
             stats["pendings_checked"], stats["resolved"], stats["emails_sent"]
         )
         return stats

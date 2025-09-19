@@ -158,7 +158,7 @@ Orzeczenie do analizy:
                 "error": None
             }
             
-            self.logger.info(f"Successfully analyzed judgment. Tokens used: {result['tokens_used']}")
+            self.logger.info(f"Tokens used: {result['tokens_used']}")
             return result
             
         except Exception as e:
@@ -186,8 +186,6 @@ Orzeczenie do analizy:
         results = []
         total_judgments = len(judgments)
         successful_analyses = 0
-        
-        self.logger.info(f"Starting analysis of {total_judgments} judgments")
         
         for i, judgment in enumerate(judgments, 1):
             self.logger.info(f"Analyzing judgment {i}/{total_judgments}")

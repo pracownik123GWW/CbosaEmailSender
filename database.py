@@ -153,7 +153,7 @@ class DatabaseManager:
         """Zainicjalizuj tabele bazy danych"""
         try:
             Base.metadata.create_all(bind=self.engine)
-            self.logger.info("✅ Tabele bazy danych zostały zainicjalizowane")
+            self.logger.info("Baza danych zainicjalizowana")
         except Exception as e:
             self.logger.error(f"❌ Błąd podczas inicjalizacji bazy danych: {e}")
             raise

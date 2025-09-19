@@ -47,7 +47,7 @@ class BrevoEmailService:
             'Accept': 'application/json'
         }
         self.logger = logging.getLogger(__name__)
-        self.logger.info("✅ Serwis email Brevo zainicjalizowany")
+        self.logger.info("Serwis email Brevo zainicjalizowany")
         
     def validate_email(self, email: str) -> bool:
         """
@@ -94,7 +94,7 @@ class BrevoEmailService:
                 time.sleep(0.1)  # delikatne odciążenie limitów API
 
         successful = sum(1 for r in results if r.success)
-        self.logger.info(f"📧 Wysłano {successful}/{len(results)} emaili pomyślnie")
+        self.logger.info(f"Wysłano {successful}/{len(results)} emaili pomyślnie")
         return results
 
     def _send_single_email(
@@ -132,7 +132,7 @@ class BrevoEmailService:
             if response.status_code == 201:
                 response_data = response.json()
                 message_id = response_data.get('messageId')
-                self.logger.debug(f"✅ Email wysłany do {recipient.email}, messageId: {message_id}")
+                self.logger.debug(f"Email wysłany do {recipient.email}, messageId: {message_id}")
                 return EmailSendResult(success=True, message_id=message_id)
 
             error_msg = f"Błąd HTTP {response.status_code}: {response.text}"
@@ -189,55 +189,6 @@ class BrevoEmailService:
                              "użyj ścieżki (str), krotki (name: str, data: bytes) lub dict z 'name' i 'content'/'url'.")
 
         return norm
-
-    def send_bulk_newsletter(
-        self,
-        recipients: List[EmailRecipient],
-        email_body: str,
-        config_name: str,
-        attachments: Optional[List[Union[str, Tuple[str, bytes], Dict[str, str]]]] = None,
-    ) -> List[EmailSendResult]:
-        """
-        Wyślij newsletter do wielu odbiorców (obsługa załączników).
-        """
-        from datetime import datetime
-        current_date = datetime.now().strftime('%d.%m.%Y')
-        subject = f"Biuletyn CBOSA: {config_name} - {current_date}"
-
-        content = EmailContent(
-            subject=subject,
-            email_body=email_body,
-            text_content="Biuletyn dostępny jest w wersji HTML. Proszę włączyć wyświetlanie HTML w kliencie email."
-        )
-
-        self.logger.info(f"📤 Wysyłanie newslettera '{config_name}' do {len(recipients)} odbiorców")
-        return self.send_email(recipients, content, attachments=attachments)
-    
-    def test_connection(self) -> bool:
-        """
-        Przetestuj połączenie z API Brevo
-        
-        Returns:
-            True jeśli połączenie działa
-        """
-        try:
-            response = requests.get(
-                f'{self.base_url}/account',
-                headers=self.headers,
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                account_info = response.json()
-                self.logger.info(f"✅ Połączenie z Brevo działa. Konto: {account_info.get('email', 'Unknown')}")
-                return True
-            else:
-                self.logger.exception(f"❌ Błąd połączenia z Brevo: HTTP {response.status_code}")
-                return False
-                
-        except Exception as e:
-            self.logger.exception(f"❌ Błąd testowania połączenia z Brevo: {e}")
-            return False
     
     def send_newsletter(
         self,
@@ -259,7 +210,7 @@ class BrevoEmailService:
             text_content="Biuletyn dostępny jest w wersji HTML. Proszę włączyć wyświetlanie HTML w kliencie email."
         )
 
-        self.logger.info(f"📤 Wysyłanie newslettera '{config_name}' do {recipient.email}")
+        self.logger.info(f"Wysyłanie newslettera '{config_name}' do {recipient.email}")
         return self._send_single_email(
             recipient=recipient,
             content=content,

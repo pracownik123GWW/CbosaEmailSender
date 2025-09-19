@@ -46,7 +46,6 @@ class DateFilterManager:
             try:
                 result['date_from_parsed'] = self.validate_date_string(date_from_str)
                 result['cbosa_params']['odDaty'] = date_from_str
-                self.logger.info(f"Date from: {date_from_str} -> {result['date_from_parsed']}")
             except ValueError as e:
                 self.logger.exception(f"Invalid start date: {e}")
                 raise
@@ -55,7 +54,6 @@ class DateFilterManager:
             try:
                 result['date_to_parsed'] = self.validate_date_string(date_to_str)
                 result['cbosa_params']['doDaty'] = date_to_str  
-                self.logger.info(f"Date to: {date_to_str} -> {result['date_to_parsed']}")
             except ValueError as e:
                 self.logger.exception(f"Invalid end date: {e}")
                 raise
@@ -90,7 +88,6 @@ class DateFilterManager:
         This compensates for CBOSA's loose date filtering
         """
         if not date_from_parsed and not date_to_parsed:
-            self.logger.info("No date filtering requested - returning all cases")
             return cases, {"total": len(cases), "filtered": 0, "kept": len(cases)}
         
         filtered_cases = []

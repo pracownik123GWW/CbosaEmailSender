@@ -54,10 +54,6 @@ class CBOSAScraper:
         Returns list of case URLs
         """
         try:
-            self.logger.info(
-                "Starting search with params:\n%s",
-                json.dumps(search_params, indent=2, ensure_ascii=False))
-
             if date_range:
                 date_from, date_to = date_range.compute_range()
                 search_params['date_from'] = date_from.isoformat()
@@ -79,6 +75,9 @@ class CBOSAScraper:
                     self.logger.info(
                         f"Date filtering enabled: {self.date_filter.get_date_filter_summary(date_from_str, date_to_str)}"
                     )
+                    self.logger.debug("Search params being sent to CBOSA: %s",
+                        json.dumps(search_params, ensure_ascii=False, indent=2)
+                    )
                 except ValueError as e:
                     self.logger.exception(f"Date validation error: {e}")
                     raise
@@ -91,7 +90,7 @@ class CBOSAScraper:
 
             # Prepare form data based on the original form structure
             form_data = self._prepare_form_data(search_params, soup)
-
+            
             # Add date parameters to CBOSA form if provided
             if date_filter_info and date_filter_info['cbosa_params']:
                 form_data.update(date_filter_info['cbosa_params'])
@@ -111,15 +110,8 @@ class CBOSAScraper:
                                                        max_results)
 
             self.logger.info(
-                f"Found {len(case_data)} cases from CBOSA (before local filtering)"
+                f"Found {len(case_data)} cases from CBOSA"
             )
-
-            # Skip local date filtering - CBOSA handles date filtering correctly
-            # The signature year (e.g., /24) doesn't necessarily match the judgment date
-            self.logger.info("Using CBOSA's date filtering results without additional local filtering")
-
-            self.logger.info(
-                f"Final result: {len(case_data)} cases after all filtering")
             return case_data
 
         except Exception as e:
@@ -205,21 +197,9 @@ class CBOSAScraper:
                         form_data[form_key] = value
 
         # Log the final form data for debugging
-        self.logger.info("Form data being sent to CBOSA:")
-        for key, value in form_data.items():
-            self.logger.info(f"  {key}: {value}")
-
-        # Special debug for judgment type issue
-        if 'rodzaj' in form_data:
-            self.logger.info(
-                f">>> JUDGMENT TYPE DEBUG: rodzaj = '{form_data['rodzaj']}'")
-        else:
-            self.logger.info(
-                ">>> JUDGMENT TYPE DEBUG: 'rodzaj' field is MISSING from form data!"
-            )
-            self.logger.info(
-                f">>> Original judgment_type parameter: '{search_params.get('judgment_type', 'NOT_SET')}'"
-            )
+        # self.logger.debug("Form data being sent to CBOSA: %s",
+        #     json.dumps(form_data, ensure_ascii=False, indent=2)
+        # )
 
         # Add required form submission field (submit button value)
         form_data[
@@ -252,9 +232,7 @@ class CBOSAScraper:
 
                     # Avoid duplicates by checking URL
                     if not any(case['url'] == full_url for case in case_data):
-                        self.logger.info(
-                            f"✅ Primary result: {signature} (parent classes: {parent_classes})"
-                        )
+                        self.logger.info(f"✅ Primary result: {signature}")
                         case_data.append({
                             'url': full_url,
                             'signature': signature
