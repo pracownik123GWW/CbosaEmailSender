@@ -373,3 +373,15 @@ class DatabaseManager:
 
             session.refresh(pj)
             return pj
+    
+    def touch_pending_no_justification(self, pending_id: int) -> Optional[PendingJudgment]:
+        """Ustawia status NO_JUSTIFICATION (pozostaje taki sam) i aktualizuje last_checked=now."""
+        with self.get_session() as session:
+            pj = session.query(PendingJudgment).filter(PendingJudgment.id == pending_id).first()
+            if not pj:
+                return None
+            pj.status = JudgementStatusEnum.NO_JUSTIFICATION
+            pj.last_checked = datetime.now(timezone.utc)
+            session.commit()
+            session.refresh(pj)
+            return pj
