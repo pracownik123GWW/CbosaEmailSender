@@ -385,3 +385,17 @@ class DatabaseManager:
             session.commit()
             session.refresh(pj)
             return pj
+    
+    def add_pending_judgment(self, *, signature: str, url: str, search_config_id: int,
+                             status: JudgementStatusEnum = JudgementStatusEnum.NO_JUSTIFICATION) -> PendingJudgment:
+        with self.get_session() as session:
+            pj = PendingJudgment(
+                signature=signature,
+                url=url,
+                search_config_id=search_config_id,
+                status=status
+            )
+            session.add(pj)
+            session.commit()
+            session.refresh(pj)
+            return pj
