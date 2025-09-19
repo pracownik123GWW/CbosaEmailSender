@@ -215,6 +215,20 @@ class CBOSABot:
             # Zaktualizuj log wykonania z sukcesem
             self._update_execution_log_completed(execution_log.id, results)
             
+            # Wysyłka spóźnionych uzasadnień
+            try:
+                pending_stats = self._process_pending_justifications(config, execution_log.id)
+                # jeśli chcesz, możesz doliczyć to do 'results' / statusu
+                results['emails_sent'] += pending_stats.get('emails_sent', 0)
+                self.logger.info(
+                    "📌 Backlog: sprawdzono=%d, resolved=%d, wysłane=%d",
+                    pending_stats.get('pendings_checked', 0),
+                    pending_stats.get('resolved', 0),
+                    pending_stats.get('emails_sent', 0),
+                )
+            except Exception:
+                self.logger.exception("❌ Błąd podczas przetwarzania pendingów (spóźnione uzasadnienia)")
+            
             return results
             
         except Exception as e:
@@ -475,6 +489,163 @@ class CBOSABot:
             error_message='; '.join(results['errors']) if results['errors'] else None,
             execution_details={'errors': results['errors']}
         )
+    
+    def _process_pending_justifications(self, config, execution_log_id: int) -> Dict[str, int]:
+        """
+        Szuka spóźnionych uzasadnień dla pendingów danej konfiguracji.
+        Jeśli znajdzie – pobiera RTF, analizuje, buduje osobny DOCX i wysyła osobny newsletter.
+        Zwraca statystyki {'pendings_checked': X, 'resolved': Y, 'emails_sent': Z}.
+        """
+        stats = {"pendings_checked": 0, "resolved": 0, "emails_sent": 0}
+        pendings = self.db_manager.get_pending_for_config(config.id)
+
+        if not pendings:
+            self.logger.info("🗂️ Brak pendingów do sprawdzenia dla: %s", config.short_name)
+            return stats
+
+        self.logger.info("🔁 Sprawdzanie pendingów (%d) dla: %s", len(pendings), config.short_name)
+
+        resolved_items = []
+
+        for pj in pendings:
+            stats["pendings_checked"] += 1
+            sig = pj.signature
+            try:
+                if self.scraper.has_justification_for_signature(sig):
+                    # spróbuj z istniejącego URL
+                    rtf = self.scraper.download_case_rtf(pj.url)
+                    case_url = pj.url
+
+                    # fallback: znajdź „świeży” URL po sygnaturze
+                    if not rtf:
+                        found = self.scraper.get_case_by_signature(sig)
+                        if found:
+                            case_url = found["url"]
+                            rtf = self.scraper.download_case_rtf(case_url)
+
+                    if not rtf:
+                        # coś nie gra – raportuj i zostaw jako NO_JUSTIFICATION (sprawdzimy następnym razem)
+                        self.logger.warning("⚠️ Znalazłem uzasadnienie dla %s, ale nie pobrałem RTF.", sig)
+                        self.db_manager.touch_pending_no_justification(pj.id)
+                        continue
+
+                    resolved_items.append({
+                        "pending": pj,
+                        "case_info": {"url": case_url, "signature": sig},
+                        "content": rtf
+                    })
+                else:
+                    # dalej brak – odnotuj sprawdzenie
+                    self.db_manager.touch_pending_no_justification(pj.id)
+
+            except Exception as e:
+                self.logger.exception("Błąd przy sprawdzaniu pendingu %s: %s", sig, e)
+                self.db_manager.touch_pending_no_justification(pj.id)
+
+        if not resolved_items:
+            self.logger.info("ℹ️ Brak uzasadnień, które się pojawiły dla: %s", config.short_name)
+            return stats
+
+        # Analiza AI
+        judgments = []
+        for item in resolved_items:
+            content = item["content"]
+            if isinstance(content, bytes):
+                try:
+                    content = content.decode("utf-8", errors="ignore")
+                except Exception:
+                    pass
+            judgments.append({"content": content, "case_info": item["case_info"]})
+
+        analysis_results = self.analyzer.analyze_multiple_judgments(judgments)
+        successful = [r for r in analysis_results if r.get("success")]
+        if not successful:
+            self.logger.warning("⚠️ Nie udało się przeanalizować żadnego „spóźnionego” uzasadnienia.")
+            return stats
+
+        stats["resolved"] = len(successful)
+
+        # Zbuduj załączniki (DOCX/TXT/ZIP) – i zmień nazwę DOCX na „konkretną”
+        computed_stats = self.analyzer.calculate_analysis_stats(analysis_results)
+        downloads_like = [
+            {"case_info": it["case_info"], "content": it["content"], "success": True}
+            for it in resolved_items
+        ]
+        attachments_triplets = self.attachments_builder.build_all(
+            analyses=successful,
+            search_params=config.config,
+            stats=computed_stats,
+            successful_downloads=downloads_like
+        )
+        # BrevoEmailService oczekuje listy (name, bytes)
+        # Zmieniamy nazwę DOCX, żeby odbiorca od razu widział, że to partia „zaległych uzasadnień”
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        attachments = []
+        for (name, data, mime) in attachments_triplets:
+            if name.lower().endswith(".docx"):
+                name = f"{config.short_name} – Uzasadnienia (starsze) – {date_str}.docx"
+            attachments.append((name, data))
+
+        # Wyślij osobny newsletter do subskrybentów tej konfiguracji
+        subscribers = self.db_manager.get_subscriptions_for_config(config.id)
+        if not subscribers:
+            self.logger.info("📪 Brak subskrybentów dla drugiego newslettera (%s)", config.short_name)
+        else:
+            templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+            html_tpl_path = os.path.join(templates_dir, "email_body.html")
+            now = datetime.now(timezone.utc)
+            config_label = f"{config.short_name} – Uzasadnienia dla starszych orzeczeń"
+
+            for subscription in subscribers:
+                user = self.db_manager.get_user(subscription.user_id)
+                if not user or not user.is_active:
+                    continue
+
+                full_name = f"{(user.first_name or '').strip()} {(user.last_name or '').strip()}".strip()
+                hello_line = full_name if full_name else "Szanowni Państwo"
+
+                context = {
+                    "date_str": now.strftime("%d.%m.%Y"),
+                    "config_name": config_label,
+                    "cases_count": str(len(successful)),
+                    "cases_without_justification": "0",
+                    "hello_line": f"{hello_line},",
+                    "sender_name": "CBOSA Biuletyn",
+                    "contact_email": "marketing@gww.pl",
+                    "support_email": "marketing@gww.pl",
+                }
+                email_body = CBOSABot.render_file_template(html_tpl_path, context)
+
+                recipient = EmailRecipient(email=user.email, name=full_name or user.email)
+
+                # używamy 'config_name' jako temat: „Biuletyn CBOSA: {config_name} – {data}”
+                email_result = self.email_service.send_newsletter(
+                    recipient=recipient,
+                    email_body=email_body,
+                    config_name=config_label,
+                    attachments=attachments
+                )
+
+                self.db_manager.create_email_log(
+                    execution_log_id=execution_log_id,
+                    user_id=user.id,
+                    email=recipient.email,
+                    status='sent' if email_result.success else 'failed',
+                    brevo_message_id=getattr(email_result, "message_id", None),
+                    error_message=getattr(email_result, "error", None)
+                )
+                if email_result.success:
+                    stats["emails_sent"] += 1
+
+        # Na końcu – oznacz rozwiązaną partię jako PROCESSED
+        for item in resolved_items:
+            self.db_manager.mark_pending_as_processed(item["pending"].id)
+
+        self.logger.info(
+            "📨 Pendingi: sprawdzono=%d, uzasadnienia znalezione=%d, maile=%d",
+            stats["pendings_checked"], stats["resolved"], stats["emails_sent"]
+        )
+        return stats
 
 
     @staticmethod
