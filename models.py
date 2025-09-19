@@ -35,5 +35,5 @@ class DateRangeEnum(enum.Enum):
         return today, today  # fallback (nie powinno się zdarzyć)
 
 class JudgementStatusEnum(enum.Enum):
-    NO_JUSTIFICATION = 'no_justification'
-    PROCESSED = 'processed'
+    NO_JUSTIFICATION = "NO_JUSTIFICATION"
+    PROCESSED = 'PROCESSED'

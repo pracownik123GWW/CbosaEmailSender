@@ -516,14 +516,14 @@ class CBOSAScraper:
             }
             results = self.search_cases(params, date_range=None, max_results=1)
             if results:
-                return True, results[0]
-            return False, None
+                return True
+            return False
         except Exception:
             self.logger.exception(f"Error checking justification for signature: {signature}")
-            return False, None
+            return False
 
 
-    def find_case_by_signature(self, signature: str):
+    def get_case_by_signature(self, signature: str):
         """
         Szuka sprawy po sygnaturze bez filtra uzasadnienia (dowolne).
         Zwraca pierwszy wynik lub None.

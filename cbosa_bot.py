@@ -10,6 +10,7 @@ from typing import List, Dict, Any
 from datetime import datetime, timezone
 from string import Template
 import traceback
+from copy import deepcopy
 
 # Import modułów CBOSA
 
@@ -18,6 +19,7 @@ from brevo_service import BrevoEmailService, EmailRecipient
 from cbosa_scraper.cbosa_scraper import CBOSAScraper
 from cbosa_scraper.ai_judgment_analyzer import JudgmentAnalyzer
 from cbosa_scraper.attachments import EmailAttachmentBuilder
+from models import JudgementStatusEnum
 
 class CBOSABot:
     """Główna klasa orchestracji CBOSA Bot"""
@@ -228,6 +230,13 @@ class CBOSABot:
                 )
             except Exception:
                 self.logger.exception("❌ Błąd podczas przetwarzania pendingów (spóźnione uzasadnienia)")
+                
+            # Pobranie nowych bez uzasanienia i zapisanie w tabeli pending
+            try:
+                step3 = self._load_new_without_justification(config)
+                self.logger.info("Zapisano bez uzasadnienia: scanned=%d, added=%d", step3["scanned"], step3["added"])
+            except Exception:
+                self.logger.exception("❌ Błąd przy pobieraniu wyroków bez uzasadnienia")
             
             return results
             
@@ -647,6 +656,44 @@ class CBOSABot:
         )
         return stats
 
+    def _load_new_without_justification(self, config) -> dict:
+        """
+        Szuka NOWYCH spraw spełniających kryteria, ale BEZ uzasadnienia.
+        Używa tych samych parametrów co krok 1, tylko bez uzasadnienia.
+        Nie dodaje tego, co już jest w pendingach dla tej konfiguracji.
+        """
+        params_all = deepcopy(config.config) or {}
+        params_all["with_justification"] = "Nie"
+
+        all_cases = self.scraper.search_cases(
+            params_all,
+            date_range=config.date_range,
+            max_results=config.max_results
+        )
+
+        scanned = len(all_cases)
+        existing = self.db_manager.get_pending_for_config(config.id)
+        candidates = [c for c in all_cases if c["signature"] not in existing]
+
+        # 4) Dla pewności sprawdź, że NIE ma uzasadnienia (po sygnaturze)
+        added = 0
+        for c in candidates:
+            sig = c["signature"]
+            try:
+                if not self.db_manager.pending_signature_exists(sig):
+                    self.db_manager.add_pending_judgment(
+                        signature=sig,
+                        url=c["url"],
+                        search_config_id=config.id,
+                        status=JudgementStatusEnum.NO_JUSTIFICATION.value
+                    )
+                    added += 1
+                else:
+                    self.logger.debug("Pomijam duplikat pendinga (sygnatura już jest): %s", sig)
+            except Exception as e:
+                self.logger.exception("Błąd przy dodawaniu wyroku bez uzasadnienia %s: %s", sig, e)
+
+        return {"scanned": scanned, "added": added}
 
     @staticmethod
     def render_file_template(path: str, context: Dict[str, str]) -> str:
@@ -654,5 +701,4 @@ class CBOSABot:
             raise FileNotFoundError(f"Template not found: {path}")
         with open(path, "r", encoding="utf-8") as f:
             tpl = Template(f.read())
-        # safe_substitute = brak Exception gdy jakiś placeholder nie wystąpi w kontekście
         return tpl.safe_substitute(context)

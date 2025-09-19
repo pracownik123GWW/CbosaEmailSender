@@ -318,7 +318,7 @@ class DatabaseManager:
                 session.query(PendingJudgment)
                 .filter(
                     PendingJudgment.search_config_id == search_config_id,
-                    PendingJudgment.status == JudgementStatusEnum.NO_JUSTIFICATION,
+                    PendingJudgment.status == JudgementStatusEnum.NO_JUSTIFICATION.value,
                 )
                 .order_by(PendingJudgment.found_date.asc())
                 .all()
@@ -330,7 +330,7 @@ class DatabaseManager:
             pj = session.query(PendingJudgment).filter(PendingJudgment.id == pending_id).first()
             if not pj:
                 return None
-            pj.status = JudgementStatusEnum.PROCESSED
+            pj.status = JudgementStatusEnum.PROCESSED.value
             pj.last_checked = datetime.now(timezone.utc)
             session.commit()
             session.refresh(pj)
@@ -349,7 +349,7 @@ class DatabaseManager:
         signature: str,
         url: str,
         search_config_id: int,
-        status: JudgementStatusEnum = JudgementStatusEnum.NO_JUSTIFICATION,
+        status: JudgementStatusEnum = JudgementStatusEnum.NO_JUSTIFICATION.value,
         found_date: Optional[datetime] = None,
     ) -> PendingJudgment:
         """
@@ -380,7 +380,7 @@ class DatabaseManager:
             pj = session.query(PendingJudgment).filter(PendingJudgment.id == pending_id).first()
             if not pj:
                 return None
-            pj.status = JudgementStatusEnum.NO_JUSTIFICATION
+            pj.status = JudgementStatusEnum.NO_JUSTIFICATION.value
             pj.last_checked = datetime.now(timezone.utc)
             session.commit()
             session.refresh(pj)
